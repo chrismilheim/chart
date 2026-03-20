@@ -523,6 +523,7 @@ select option{background:var(--s2);}
       <button class="shbtn" onclick="openSed('architecture-beta')">🏗 Architecture</button>
       <button class="shbtn" onclick="openSed('packet')">📦 Packet</button>
       <button class="shbtn" onclick="openSed('journey')">🗺 Journey</button>
+      <button class="shbtn" onclick="openSed('kanban')">📋 Kanban</button>
     </div>
 
 </div>
@@ -1388,10 +1389,14 @@ function pXY(nid,port){
   return{x:px,y:py};
 }
 function bestPorts(a,b){
-  const na=nodes[a],nb2=nodes[b];if(!na||!nb2)return['r','l'];
-  const dx=nb2.x-na.x,dy=nb2.y-na.y;
-  if(Math.abs(dx)>=Math.abs(dy))return dx>0?['r','l']:['l','r'];
-  return dy>0?['b','t']:['t','b'];
+  const na=nodes[a],nb2=nodes[b];if(!na||!nb2)return['b','t'];
+  const dx=(nb2.x+nb2.w/2)-(na.x+na.w/2);
+  const dy=(nb2.y+nb2.h/2)-(na.y+na.h/2);
+  const adx=Math.abs(dx), ady=Math.abs(dy);
+  // Strongly prefer top/bottom for vertical flow (TD diagrams)
+  // Only use left/right if significantly more horizontal than vertical
+  if(ady >= adx*0.5) return dy>0?['b','t']:['t','b'];
+  return dx>0?['r','l']:['l','r'];
 }
 function mkEdge(o={}){
   const[fp,tp]=o.fromP?[o.fromP,o.toP||'l']:bestPorts(o.from,o.to);
@@ -2218,16 +2223,43 @@ function parseFlow(lines){
     // ── style / direction directives inside subgraph
     if(l.startsWith('style ')||l.startsWith('direction ')) return;
 
-    // ── edges
-    const em=l.match(eRe);
-    if(em){
-      const fn=gn(em[1].trim()), tn=gn(em[4].trim());
-      if(fn&&tn){
-        edgeDefs.push({from:fn.id,to:tn.id,label:em[3]||'',sty:em[2].includes('.')?'dashed':'solid'});
-        if(curSub){if(!curSub.nodeIds.includes(fn.id))curSub.nodeIds.push(fn.id);if(!curSub.nodeIds.includes(tn.id))curSub.nodeIds.push(tn.id);}
+    // ── edges (including chained: A --> B --> C --> D)
+    // Iteratively peel off one edge at a time from the left
+    let remaining = l;
+    let chainFrom = null;
+    let chainLabel = '';
+    let chainSty = 'solid';
+    let matched = false;
+    while(true){
+      const em = remaining.match(eRe);
+      if(!em) break;
+      matched = true;
+      const leftTok = em[1].trim();
+      const op      = em[2];
+      const lbl     = em[3]||'';
+      const rightRaw = em[4].trim();
+      // rightRaw may itself be "B[label] --> C --> D" — extract just the first token
+      // Split on the arrow pattern to get the first node token
+      const rightSplit = rightRaw.match(/^(.+?)\s*(?:--?>>\.│==+>|-.->|--?>|--?x|--?o|--?-+>|===)/);
+      const rightTok = rightSplit ? rightSplit[1].trim() : rightRaw;
+      const fn = chainFrom || gn(leftTok);
+      const tn = gn(rightTok);
+      if(fn && tn){
+        const sty = op.includes('.')||op.includes('=') ? (op.includes('=')?'solid':'dashed') : 'solid';
+        edgeDefs.push({from:fn.id, to:tn.id, label:lbl, sty});
+        if(curSub){
+          if(!curSub.nodeIds.includes(fn.id)) curSub.nodeIds.push(fn.id);
+          if(!curSub.nodeIds.includes(tn.id)) curSub.nodeIds.push(tn.id);
+        }
+        chainFrom = tn;
       }
-      return;
+      // Advance: remaining = everything after the right-side token
+      // i.e. strip "leftTok op [|lbl|] rightTok" from the front
+      const consumed = em[0].slice(0, em[0].length - rightRaw.length + rightTok.length);
+      remaining = remaining.slice(consumed.length).trim();
+      if(!remaining || !remaining.match(/^--?>|^==|^-\./)) break;
     }
+    if(matched) return;
 
     // ── standalone node definitions (may be semicolon-separated)
     l.split(';').forEach(part=>{
@@ -2250,37 +2282,170 @@ function parseFlow(lines){
 // Layout that groups subgraph nodes together, then arranges subgraphs in a grid
 function layoutFlow(allNodes, subgraphs, edgeDefs){
   if(!allNodes.length) return;
-  const COLS_FALLBACK=Math.ceil(Math.sqrt(allNodes.length));
-  const PAD_X=220, PAD_Y=140, SG_PAD=60;
 
-  // Nodes not in any subgraph
-  const inSub=new Set(subgraphs.flatMap(sg=>sg.nodeIds));
-  const freeNodes=allNodes.filter(n=>!inSub.has(n.id));
+  /*
+   * GLOBAL RANK + SUBGRAPH LANE LAYOUT  (matches Mermaid TD style)
+   *
+   * 1. Remove back-edges (cycles) via DFS, then run longest-path
+   *    topo sort to get a global rank for every node.
+   * 2. Free nodes get their rank from the spine (A→B→C…→Z).
+   * 3. Subgraph nodes get their rank from the full graph edges
+   *    (E→A1 means A1 is downstream of C→E).
+   * 4. Each subgraph = horizontal lane. Free nodes = leftmost lane.
+   * 5. Lanes sorted by their entry rank (min global rank of members).
+   */
 
-  // Lay out each subgraph cluster
-  let curX=60, curY=60, rowH=0;
-  subgraphs.forEach(sg=>{
-    const sns=sg.nodeIds.map(id=>allNodes.find(n=>n.id===id)).filter(Boolean);
-    if(!sns.length) return;
-    const cols=Math.ceil(Math.sqrt(sns.length));
-    sns.forEach((n,i)=>{n.x=curX+(i%cols)*PAD_X; n.y=curY+Math.floor(i/cols)*PAD_Y; renderNode(n);});
-    const w=cols*PAD_X+SG_PAD;
-    const h=Math.ceil(sns.length/cols)*PAD_Y+SG_PAD;
-    rowH=Math.max(rowH,h);
-    curX+=w+SG_PAD;
-    // Wrap row if too wide
-    if(curX>1200){curX=60;curY+=rowH+SG_PAD;rowH=0;}
+  const NODE_W    = 160;
+  const NODE_H    = 50;
+  const H_GAP     = 60;
+  const V_GAP     = 90;
+  const LANE_GAP  = 80;
+  const SG_PAD    = 44;
+  const FREE_PAD  = 20;
+  const ORIGIN_X  = 60;
+  const ORIGIN_Y  = 60;
+
+  const nodeMap = {};
+  allNodes.forEach(n => nodeMap[n.id] = n);
+
+  // ── 1. DFS to find and remove back-edges (break cycles) ──
+  const adjFull = {};
+  allNodes.forEach(n => adjFull[n.id] = []);
+  edgeDefs.forEach(({from,to}) => {
+    if(nodeMap[from] && nodeMap[to] && from!==to)
+      adjFull[from].push(to);
   });
 
-  // Free nodes go below subgraphs
-  const freeY=subgraphs.length?curY+rowH+SG_PAD:60;
-  freeNodes.forEach((n,i)=>{
-    n.x=60+(i%COLS_FALLBACK)*PAD_X;
-    n.y=freeY+Math.floor(i/COLS_FALLBACK)*PAD_Y;
-    renderNode(n);
+  const dfsColor = {};  // 0=white,1=gray,2=black
+  allNodes.forEach(n => dfsColor[n.id] = 0);
+  const backEdges = new Set();
+
+  function dfs(u){
+    dfsColor[u] = 1;
+    for(const v of (adjFull[u]||[])){
+      if(dfsColor[v]===1){
+        backEdges.add(`${u}->${v}`);  // back-edge: skip in rank calc
+      } else if(dfsColor[v]===0){
+        dfs(v);
+      }
+    }
+    dfsColor[u] = 2;
+  }
+  allNodes.forEach(n => { if(dfsColor[n.id]===0) dfs(n.id); });
+
+  // ── 2. Build DAG edges (excluding back-edges) ─────────────
+  const dagPreds = {};
+  allNodes.forEach(n => dagPreds[n.id] = []);
+  edgeDefs.forEach(({from,to}) => {
+    if(nodeMap[from] && nodeMap[to] && from!==to
+       && !backEdges.has(`${from}->${to}`)){
+      dagPreds[to].push(from);
+    }
+  });
+
+  // ── 3. Longest-path rank on DAG (Kahn's BFS) ─────────────
+  const inD = {};
+  allNodes.forEach(n => inD[n.id] = dagPreds[n.id].length);
+
+  const globalRank = {};
+  allNodes.forEach(n => globalRank[n.id] = 0);
+
+  const q = allNodes.filter(n=>inD[n.id]===0).map(n=>n.id);
+  const dagOut = {};
+  allNodes.forEach(n => dagOut[n.id] = []);
+  edgeDefs.forEach(({from,to}) => {
+    if(nodeMap[from]&&nodeMap[to]&&from!==to&&!backEdges.has(`${from}->${to}`))
+      dagOut[from].push(to);
+  });
+
+  let head = 0;
+  while(head < q.length){
+    const id = q[head++];
+    dagOut[id].forEach(tid => {
+      globalRank[tid] = Math.max(globalRank[tid]||0, (globalRank[id]||0)+1);
+      inD[tid]--;
+      if(inD[tid]<=0) q.push(tid);
+    });
+  }
+
+  const maxRank = Math.max(0, ...allNodes.map(n=>globalRank[n.id]||0));
+
+  // ── 4. Assign lanes ───────────────────────────────────────
+  const nodeLane = {};
+  subgraphs.forEach(sg => sg.nodeIds.forEach(id => { nodeLane[id] = sg.id; }));
+  allNodes.forEach(n => { if(!nodeLane[n.id]) nodeLane[n.id] = '__free__'; });
+
+  const hasFree = allNodes.some(n => nodeLane[n.id]==='__free__');
+
+  const laneMinRank = {};
+  subgraphs.forEach(sg => {
+    laneMinRank[sg.id] = Math.min(...sg.nodeIds.map(id=>globalRank[id]||0));
+  });
+
+  const laneIds = [...subgraphs.map(sg=>sg.id)];
+  if(hasFree) laneIds.push('__free__');
+
+  // Free lane leftmost; subgraphs sorted by their entry rank
+  laneIds.sort((a,b) => {
+    if(a==='__free__') return -1;
+    if(b==='__free__') return 1;
+    return (laneMinRank[a]||0) - (laneMinRank[b]||0);
+  });
+
+  // ── 5. Lane widths ────────────────────────────────────────
+  const laneWidth = {};
+  laneIds.forEach(lid => {
+    const lns = allNodes.filter(n=>nodeLane[n.id]===lid);
+    const byR = {};
+    lns.forEach(n => { const r=globalRank[n.id]||0; if(!byR[r])byR[r]=[]; byR[r].push(n); });
+    let maxW = NODE_W;
+    Object.values(byR).forEach(rns => {
+      const rw = rns.reduce((s,n)=>s+(n.w||NODE_W)+H_GAP,-H_GAP);
+      if(rw>maxW) maxW=rw;
+    });
+    const pad = lid==='__free__' ? FREE_PAD : SG_PAD;
+    laneWidth[lid] = maxW + pad*2;
+  });
+
+  // ── 6. Lane X positions ───────────────────────────────────
+  const laneX = {};
+  let cx = ORIGIN_X;
+  laneIds.forEach(lid => { laneX[lid]=cx; cx+=laneWidth[lid]+LANE_GAP; });
+
+  // ── 7. Place nodes: y by global rank, x centered in lane ──
+  const cells = {};
+  allNodes.forEach(n => {
+    const key = `${nodeLane[n.id]}::${globalRank[n.id]||0}`;
+    if(!cells[key]) cells[key] = [];
+    cells[key].push(n);
+  });
+
+  Object.entries(cells).forEach(([key, cns]) => {
+    const [lid, rs] = key.split('::');
+    const r = parseInt(rs);
+    const pad  = lid==='__free__' ? FREE_PAD : SG_PAD;
+    const lx   = laneX[lid] + pad;
+    const lw   = laneWidth[lid] - pad*2;
+    const rowW = cns.reduce((s,n)=>s+(n.w||NODE_W)+H_GAP,-H_GAP);
+    const startX = lx + Math.max(0,(lw-rowW)/2);
+    let nx = startX;
+    cns.forEach(n => {
+      n.x = nx;
+      n.y = ORIGIN_Y + r*(NODE_H+V_GAP);
+      nx += (n.w||NODE_W)+H_GAP;
+    });
+  });
+
+  // ── 8. Render ─────────────────────────────────────────────
+  allNodes.forEach(n => renderNode(n));
+  edges.forEach(e => {
+    const [fp,tp] = bestPorts(e.from,e.to);
+    e.fromP=fp; e.toP=tp;
   });
   rerenderEdges();
 }
+
+
 function parseSeq(lines){
   // ── Parse actors and messages ──────────────────────────
   const actorMap={}, actorList=[], msgs=[];
@@ -2841,7 +3006,7 @@ let sedType=null, sedFormTab='form', prevTimer=null;
 
 function openSed(type, existingCode=''){
   sedType=type;
-  const titles={gantt:'Gantt Chart Editor',pie:'Pie Chart Editor',timeline:'Timeline Editor',quadrant:'Quadrant Chart Editor',gitgraph:'Git Graph Editor',xy:'XY Chart Editor',packet:'Packet Diagram Editor',journey:'Journey Map Editor'};
+  const titles={gantt:'Gantt Chart Editor',pie:'Pie Chart Editor',timeline:'Timeline Editor',quadrant:'Quadrant Chart Editor',gitgraph:'Git Graph Editor',xy:'XY Chart Editor',packet:'Packet Diagram Editor',journey:'Journey Map Editor',kanban:'Kanban Board Editor'};
   document.getElementById('sed-title').textContent=titles[type]||'Chart Editor';
   document.getElementById('sed').classList.add('open');
   sedTab('form');
@@ -2865,6 +3030,7 @@ function doPreview(){
   if(!code){document.getElementById('sed-prev-wrap').innerHTML='<div class="prev-err">Nothing to preview</div>';return;}
   if(sedType==='packet'){const pw=document.getElementById('sed-prev-wrap');if(pw)pw.innerHTML=renderPacketSVG(code);return;}
   if(sedType==='journey'){const pw=document.getElementById('sed-prev-wrap');if(pw)pw.innerHTML=renderJourneySVG(code);return;}
+  if(sedType==='kanban'){const pw=document.getElementById('sed-prev-wrap');if(pw)pw.innerHTML=renderKanbanSVG(code);return;}
   mermaid.render('prev'+Date.now(),code).then(r=>{
     document.getElementById('sed-prev-wrap').innerHTML=r.svg;
     const s=document.getElementById('sed-prev-wrap').querySelector('svg');
@@ -2879,6 +3045,7 @@ function sedApply(){
   if(!code){toast('Nothing to apply');return;}
   if(sedType==='packet'){applyPacketDiagram(code);return;}
   if(sedType==='journey'){applyJourneyDiagram(code);return;}
+  if(sedType==='kanban'){applyKanbanDiagram(code);return;}
   mermaid.render('apply'+Date.now(),code).then(r=>{
     const vb=(r.svg.match(/viewBox="([^"]+)"/)||[])[1]||'';
     const p=vb.split(/\s+/);const w=Math.min(900,parseFloat(p[2])||700),h=Math.min(600,parseFloat(p[3])||400);
@@ -2929,6 +3096,7 @@ function buildSedForm(type, existingCode){
   else if(type==='xy')buildXYForm(ed,existingCode);
   else if(type==='packet')buildPacketForm(ed,existingCode);
   else if(type==='journey')buildJourneyForm(ed,existingCode);
+  else if(type==='kanban')buildKanbanForm(ed,existingCode);
   else {
     // Code-only editor for unsupported form types (architecture-beta etc)
     ed.innerHTML='<div style="color:var(--t2);font-size:12px;padding:8px 0 10px">Edit the code directly — live preview updates as you type.</div>';
@@ -2958,6 +3126,7 @@ function buildSedMmd(){
   if(sedType==='xy')return xyMmd();
   if(sedType==='packet')return packetMmd();
   if(sedType==='journey')return journeyMmd();
+  if(sedType==='kanban')return kanbanMmd();
   // code-only types: return whatever is in the code editor
   return document.getElementById('sed-code')?.value?.trim()||'';
 }
@@ -3584,6 +3753,7 @@ cw2.addEventListener('pointermove',e=>{if(pinchIds.length>=2)return;cwPM(e);});
 cw2.addEventListener('pointerup',e=>{pinchIds=pinchIds.filter(id=>id!==e.pointerId);delete pinchPtrs[e.pointerId];if(pinchIds.length===0)pinchDist=0;cwPU(e);});
 cw2.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'&&!pinchIds.includes(e.pointerId))pinchIds.push(e.pointerId);if(pinchIds.length<2)cwPD(e);});
 cw2.addEventListener('pointercancel',e=>{pinchIds=pinchIds.filter(id=>id!==e.pointerId);cwPU(e);});
+cw2.addEventListener('contextmenu',e=>{e.preventDefault();});
 cw2.addEventListener('pointermove',e=>{if(!pinchIds.includes(e.pointerId))return;pinchPtrs[e.pointerId]={x:e.clientX,y:e.clientY};const ids=Object.keys(pinchPtrs);if(ids.length===2){const a=pinchPtrs[ids[0]],b=pinchPtrs[ids[1]];const dist=Math.hypot(b.x-a.x,b.y-a.y);if(pinchDist>0){const f=dist/pinchDist;const r=cw2.getBoundingClientRect();const mx=(a.x+b.x)/2-r.left;const my=(a.y+b.y)/2-r.top;panX=mx-(mx-panX)*f;panY=my-(my-panY)*f;zoom=Math.max(.08,Math.min(6,zoom*f));applyTx();}pinchDist=dist;}},{passive:true});
 let lastTap2=0;
 cw2.addEventListener('touchend',e=>{const now=Date.now();if(now-lastTap2<320){const t=e.changedTouches[0];const cp=s2c(t.clientX,t.clientY);const n=mkNode({x:cp.x-70,y:cp.y-25});clearSel();addSel(n.id);updateMobProps();mobTab('props');e.preventDefault();}lastTap2=now;},{passive:false});
@@ -3594,7 +3764,7 @@ document.addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'|
 document.addEventListener('keyup',e=>{if(e.key===' '){spaceDown=false;document.getElementById('cw').style.cursor='';}});
 
 function cwPD(e){
-  if(spaceDown||e.button===1){panning=true;panSX=e.clientX-panX;panSY=e.clientY-panY;document.body.style.cursor='grabbing';return;}
+  if(spaceDown||e.button===1||e.button===2){panning=true;panSX=e.clientX-panX;panSY=e.clientY-panY;document.body.style.cursor='grabbing';return;}
   const tgt=e.target;
   if(tgt===document.getElementById('cw')||tgt===document.getElementById('canvas')||tgt===document.getElementById('esvg')||tgt.closest?.('#eg')){
     if(tgt.closest?.('#eg'))return;
@@ -4618,5 +4788,308 @@ function loadJourneyTemplate(name) {
   journeyData = JSON.parse(JSON.stringify(t));
   renderJourneyForm(document.getElementById('sed-form'));
   schedPrev();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KANBAN BOARD — native renderer
+// ═══════════════════════════════════════════════════════════════
+
+let kanbanData = {
+  ticketBaseUrl: 'https://github.com/mermaid-js/mermaid/issues/#TICKET#',
+  columns: [
+    { id: 'col0', title: 'Todo', items: [
+        { id: 'item0', label: 'Create Documentation', assigned: '', ticket: '', priority: '' },
+        { id: 'item1', label: 'Create Blog about the new diagram', assigned: '', ticket: '', priority: '' }
+    ]},
+    { id: 'col1', title: 'In progress', items: [
+        { id: 'item2', label: 'Create renderer so that it works in all cases. We also add some extra text here for testing purposes.', assigned: '', ticket: '', priority: '' }
+    ]},
+    { id: 'col2', title: 'Done', items: [
+        { id: 'item3', label: 'define getData', assigned: '', ticket: '', priority: '' }
+    ]}
+  ]
+};
+
+// ── Parse kanban mermaid code ────────────────────────────────
+function parseKanbanCode(code) {
+  const lines = code.split('\n');
+  const result = { ticketBaseUrl: '', columns: [] };
+  let curCol = null;
+  let inConfig = false;
+  let inKanban = false;
+
+  for (let rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+
+    if (trimmed === '---') { inConfig = !inConfig; continue; }
+    if (inConfig) {
+      const m = trimmed.match(/ticketBaseUrl:\s*'([^']+)'/);
+      if (m) result.ticketBaseUrl = m[1];
+      continue;
+    }
+    if (trimmed === 'kanban') { inKanban = true; continue; }
+    if (!inKanban) continue;
+    if (!trimmed || trimmed.startsWith('%%')) continue;
+
+    const indent = line.match(/^(\s*)/)[1].length;
+
+    if (indent < 4) {
+      // Column header
+      const idBracket = trimmed.match(/^(\w+)\[(.+)\]$/);
+      const justBracket = trimmed.match(/^\[(.+)\]$/);
+      const colId = idBracket ? idBracket[1] : ('col' + result.columns.length);
+      const colTitle = idBracket ? idBracket[2] : (justBracket ? justBracket[1] : trimmed);
+      curCol = { id: colId, title: colTitle, items: [] };
+      result.columns.push(curCol);
+    } else if (indent >= 4 && curCol) {
+      // Item
+      let itemStr = trimmed;
+      let meta = {};
+      const metaM = itemStr.match(/@\{([^}]+)\}/);
+      if (metaM) {
+        itemStr = itemStr.replace(metaM[0], '').trim();
+        const mStr = metaM[1];
+        const assignedM = mStr.match(/assigned:\s*['"]?([^,'"\}]+)['"]?/);
+        const ticketM   = mStr.match(/ticket:\s*(\d+)/);
+        const priorityM = mStr.match(/priority:\s*['"]([^'"]+)['"]/);
+        if (assignedM) meta.assigned = assignedM[1].trim();
+        if (ticketM)   meta.ticket   = ticketM[1];
+        if (priorityM) meta.priority = priorityM[1].trim();
+      }
+      const idBracket   = itemStr.match(/^(\w+)\[(.+)\]$/);
+      const justBracket = itemStr.match(/^\[(.+)\]$/);
+      const itemId    = idBracket ? idBracket[1] : ('item' + Math.random().toString(36).slice(2,7));
+      const itemLabel = idBracket ? idBracket[2] : (justBracket ? justBracket[1] : itemStr);
+      curCol.items.push({ id: itemId, label: itemLabel, assigned: meta.assigned||'', ticket: meta.ticket||'', priority: meta.priority||'' });
+    }
+  }
+  if (!result.columns.length) return null;
+  return result;
+}
+
+// ── Build mermaid code from kanbanData ────────────────────────
+function kanbanMmd() {
+  const kd = kanbanData;
+  const lines = [];
+  if (kd.ticketBaseUrl) {
+    lines.push('---');
+    lines.push('config:');
+    lines.push('  kanban:');
+    lines.push("    ticketBaseUrl: '" + kd.ticketBaseUrl + "'");
+    lines.push('---');
+  }
+  lines.push('kanban');
+  kd.columns.forEach(function(col) {
+    const colHdr = (col.id && col.id !== col.title) ? ('  ' + col.id + '[' + col.title + ']') : ('  [' + col.title + ']');
+    lines.push(colHdr);
+    col.items.forEach(function(item) {
+      const meta = [];
+      if (item.assigned) meta.push("assigned: '" + item.assigned + "'");
+      if (item.ticket)   meta.push('ticket: ' + item.ticket);
+      if (item.priority) meta.push("priority: '" + item.priority + "'");
+      const metaStr = meta.length ? ('@{ ' + meta.join(', ') + ' }') : '';
+      const itemHdr = item.id ? ('    ' + item.id + '[' + item.label + ']') : ('    [' + item.label + ']');
+      lines.push(itemHdr + metaStr);
+    });
+  });
+  return lines.join('\n');
+}
+
+// ── Native SVG renderer — Mermaid-faithful ────────────────────
+function renderKanbanSVG(code) {
+  const d = (typeof code === 'string') ? parseKanbanCode(code) : code;
+  if (!d || !d.columns.length) return '<div style="color:var(--rd);padding:12px">No columns found</div>';
+
+  const FONT      = 'Inter,sans-serif';
+  const MONO      = '"JetBrains Mono",monospace';
+  const COL_W     = 200;
+  const COL_GAP   = 14;
+  const COL_HDR_H = 36;
+  const ITEM_PAD  = 10;
+  const ITEM_GAP  = 8;
+  const ITEM_MIN_H = 46;
+  const ITEM_FONT  = 12;
+  const META_FONT  = 10;
+  const PAD        = 16;
+
+  // Mermaid kanban column header colors (cycle)
+  const COL_COLORS = ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5'];
+  const PRIORITY_COLOR = {
+    'Very High':'#ef4444','High':'#f97316','Medium':'#eab308',
+    'Low':'#22c55e','Very Low':'#94a3b8'
+  };
+
+  function textLines(label, maxW, fontSize) {
+    const approxCharW = fontSize * 0.55;
+    const charsPerLine = Math.max(1, Math.floor(maxW / approxCharW));
+    const words = label.split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if (!cur) { cur = w; continue; }
+      if ((cur + ' ' + w).length <= charsPerLine) cur += ' ' + w;
+      else { lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [label];
+  }
+
+  function itemHeight(item) {
+    const innerW = COL_W - ITEM_PAD * 2;
+    const lns = textLines(item.label, innerW, ITEM_FONT);
+    let h = ITEM_PAD + lns.length * (ITEM_FONT + 4) + ITEM_PAD;
+    if (item.assigned || item.ticket || item.priority) h += META_FONT + 8;
+    return Math.max(ITEM_MIN_H, h);
+  }
+
+  function colHeight(col) {
+    let h = COL_HDR_H + ITEM_GAP;
+    col.items.forEach(function(it) { h += itemHeight(it) + ITEM_GAP; });
+    return h;
+  }
+
+  const maxColH = Math.max.apply(null, d.columns.map(colHeight));
+  const totalW  = PAD * 2 + d.columns.length * COL_W + (d.columns.length - 1) * COL_GAP;
+  const totalH  = PAD * 2 + maxColH;
+
+  const esc = function(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + totalW + '" height="' + totalH + '" viewBox="0 0 ' + totalW + ' ' + totalH + '" style="font-family:' + FONT + ';background:#1e2235">';
+  svg += '<rect width="' + totalW + '" height="' + totalH + '" fill="#1e2235"/>';
+
+  d.columns.forEach(function(col, ci) {
+    const cx = PAD + ci * (COL_W + COL_GAP);
+    const cy = PAD;
+    const colH = colHeight(col);
+    const hdrColor = COL_COLORS[ci % COL_COLORS.length];
+
+    // Column bg
+    svg += '<rect x="' + cx + '" y="' + cy + '" width="' + COL_W + '" height="' + colH + '" rx="6" fill="#252a40" stroke="#2e3350" stroke-width="1"/>';
+
+    // Header
+    svg += '<rect x="' + cx + '" y="' + cy + '" width="' + COL_W + '" height="' + COL_HDR_H + '" rx="6" fill="' + hdrColor + '"/>';
+    svg += '<rect x="' + cx + '" y="' + (cy + COL_HDR_H - 6) + '" width="' + COL_W + '" height="6" fill="' + hdrColor + '"/>';
+
+    // Title
+    svg += '<text x="' + (cx + COL_W/2) + '" y="' + (cy + COL_HDR_H/2 + 5) + '" text-anchor="middle" font-size="13" font-weight="700" font-family="' + FONT + '" fill="#1a1d27">' + esc(col.title) + '</text>';
+
+    // Count
+    svg += '<text x="' + (cx + COL_W - 10) + '" y="' + (cy + 15) + '" text-anchor="end" font-size="10" font-family="' + FONT + '" fill="#1a1d27" opacity="0.65">' + col.items.length + '</text>';
+
+    // Items
+    let iy = cy + COL_HDR_H + ITEM_GAP;
+    col.items.forEach(function(item) {
+      const ih = itemHeight(item);
+      const innerW = COL_W - ITEM_PAD * 2;
+
+      // Card bg
+      svg += '<rect x="' + (cx + 4) + '" y="' + iy + '" width="' + (COL_W - 8) + '" height="' + ih + '" rx="4" fill="#2d3348" stroke="#3a4060" stroke-width="1"/>';
+
+      // Label
+      const lns = textLines(item.label, innerW - 4, ITEM_FONT);
+      lns.forEach(function(ln, li) {
+        svg += '<text x="' + (cx + ITEM_PAD + 4) + '" y="' + (iy + ITEM_PAD + li * (ITEM_FONT + 4) + ITEM_FONT) + '" font-size="' + ITEM_FONT + '" font-family="' + FONT + '" fill="#e8ecf5">' + esc(ln) + '</text>';
+      });
+
+      // Meta row
+      const metaY = iy + ih - ITEM_PAD;
+      let metaX = cx + ITEM_PAD + 4;
+
+      if (item.priority) {
+        const pc = PRIORITY_COLOR[item.priority] || '#94a3b8';
+        const pw = item.priority.length * 5.5 + 8;
+        svg += '<rect x="' + metaX + '" y="' + (metaY - META_FONT - 1) + '" width="' + pw + '" height="' + (META_FONT + 3) + '" rx="3" fill="' + pc + '" opacity="0.9"/>';
+        svg += '<text x="' + (metaX + pw/2) + '" y="' + metaY + '" text-anchor="middle" font-size="' + (META_FONT - 1) + '" font-family="' + FONT + '" font-weight="600" fill="#fff">' + esc(item.priority) + '</text>';
+        metaX += pw + 5;
+      }
+
+      if (item.ticket) {
+        svg += '<text x="' + metaX + '" y="' + metaY + '" font-size="' + META_FONT + '" font-family="' + MONO + '" fill="#6366f1">#' + esc(item.ticket) + '</text>';
+        metaX += item.ticket.length * 7 + 16;
+      }
+
+      if (item.assigned) {
+        const initials = item.assigned.split(/[\s._]/).map(function(p){return p[0]||'';}).join('').toUpperCase().slice(0,2) || item.assigned[0].toUpperCase();
+        svg += '<circle cx="' + (metaX + 8) + '" cy="' + (metaY - 4) + '" r="8" fill="#4f52d4"/>';
+        svg += '<text x="' + (metaX + 8) + '" y="' + (metaY - 4 + 4) + '" text-anchor="middle" font-size="8" font-family="' + FONT + '" font-weight="600" fill="#fff">' + esc(initials) + '</text>';
+      }
+
+      iy += ih + ITEM_GAP;
+    });
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
+// ── Form UI ───────────────────────────────────────────────────
+function buildKanbanForm(ed, existingCode) {
+  if (existingCode) {
+    const parsed = parseKanbanCode(existingCode);
+    if (parsed) kanbanData = parsed;
+  }
+  renderKanbanForm(ed);
+}
+
+function renderKanbanForm(ed) {
+  const kd = kanbanData;
+  let h = '<div class="ssec-title">Ticket Base URL</div><div class="srow"><input class="sinput w100" placeholder="https://…/issues/#TICKET#" value="' + (kd.ticketBaseUrl||'').replace(/"/g,'&quot;') + '" oninput="kanbanData.ticketBaseUrl=this.value;schedPrev()"></div>';
+
+  kd.columns.forEach(function(col, ci) {
+    h += '<div class="sgroup" style="margin-top:10px;border:1px solid #2e3350;border-radius:6px;padding:8px;background:#1a1d27">';
+    h += '<div class="srow" style="margin-bottom:6px">';
+    h += '<span class="slabel" style="font-size:10px;font-weight:700;color:var(--t3)">COLUMN</span>';
+    h += '<input class="sinput" style="flex:1" placeholder="Column title" value="' + col.title.replace(/"/g,'&quot;') + '" oninput="kanbanData.columns[' + ci + '].title=this.value;schedPrev()">';
+    h += '<button class="sdel" onclick="kanbanData.columns.splice(' + ci + ',1);renderKanbanForm(document.getElementById(\'sed-form\'));schedPrev()">✕</button>';
+    h += '</div>';
+
+    col.items.forEach(function(item, ii) {
+      h += '<div class="srow" style="flex-wrap:wrap;gap:4px;padding:6px 0;border-top:1px solid #2e335055">';
+      h += '<input class="sinput" style="flex:2;min-width:100px" placeholder="Card label" value="' + item.label.replace(/"/g,'&quot;') + '" oninput="kanbanData.columns[' + ci + '].items[' + ii + '].label=this.value;schedPrev()">';
+      h += '<input class="sinput" style="width:68px" placeholder="Assigned" value="' + (item.assigned||'').replace(/"/g,'&quot;') + '" oninput="kanbanData.columns[' + ci + '].items[' + ii + '].assigned=this.value;schedPrev()">';
+      h += '<input class="sinput" style="width:50px" placeholder="#ticket" value="' + (item.ticket||'').replace(/"/g,'&quot;') + '" oninput="kanbanData.columns[' + ci + '].items[' + ii + '].ticket=this.value;schedPrev()">';
+      const pOpts = ['','Very High','High','Medium','Low','Very Low'].map(function(p){
+        return '<option value="' + p + '"' + (item.priority===p?' selected':'') + '>' + (p||'Priority') + '</option>';
+      }).join('');
+      h += '<select class="sinput" style="width:78px" onchange="kanbanData.columns[' + ci + '].items[' + ii + '].priority=this.value;schedPrev()">' + pOpts + '</select>';
+      h += '<button class="sdel" onclick="kanbanData.columns[' + ci + '].items.splice(' + ii + ',1);renderKanbanForm(document.getElementById(\'sed-form\'));schedPrev()">✕</button>';
+      h += '</div>';
+    });
+
+    h += '<button class="sadd" style="margin-top:6px;width:100%" onclick="kanbanData.columns[' + ci + '].items.push({id:\'item\'+Date.now(),label:\'New card\',assigned:\'\',ticket:\'\',priority:\'\'});renderKanbanForm(document.getElementById(\'sed-form\'));schedPrev()">+ Add Card</button>';
+    h += '</div>';
+  });
+
+  h += '<button class="sadd" style="margin-top:10px;width:100%" onclick="kanbanData.columns.push({id:\'col\'+Date.now(),title:\'New Column\',items:[]});renderKanbanForm(document.getElementById(\'sed-form\'));schedPrev()">+ Add Column</button>';
+
+  ed.innerHTML = h;
+}
+
+// ── Apply to canvas ───────────────────────────────────────────
+function applyKanbanDiagram(code) {
+  const d = parseKanbanCode(code);
+  if (!d || !d.columns.length) { toast('No columns found'); return; }
+  const svgStr = renderKanbanSVG(code);
+  const wm = svgStr.match(/width="([\d.]+)"/);
+  const hm = svgStr.match(/height="([\d.]+)"/);
+  const W = wm ? parseFloat(wm[1]) : 900;
+  const H = hm ? parseFloat(hm[1]) : 400;
+  clearAll(true);
+  const n = mkNode({ label:'', x: vp.x + (vp.w/vp.z - W)/2, y: vp.y + (vp.h/vp.z - H)/2,
+    w: W, h: H, shape:'rect', fillColor:'#1e2235', strokeColor:'transparent', noLabel:true });
+  n._sedType = 'kanban';
+  n._sedCode = code;
+  const el = document.getElementById('nd-'+n.id);
+  if (el) {
+    el._sedType = 'kanban'; el._sedCode = code;
+    el.innerHTML = svgStr;
+    const sv = el.querySelector('svg');
+    if (sv) sv.style.cssText = 'width:100%;height:100%;display:block;border-radius:6px';
+  }
+  closeSed();
+  toast('Kanban board placed!');
 }
 </script>
