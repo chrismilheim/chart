@@ -345,14 +345,14 @@ select option{background:var(--s2);}
 .ce-stereotype:focus{border-color:var(--ac);}
 
 
-/* ── Skittle nodes ── */
-.node[data-s="skittle"] .nb{
+/* ── Dop nodes ── */
+.node[data-s="dop"] .nb{
   border-radius:50%;display:flex;align-items:center;justify-content:center;
   padding:0;font-weight:700;
 }
-.node[data-s="skittle"].sel .nb{box-shadow:0 0 0 3px rgba(99,102,241,.35);}
-/* Skittle sidebar section */
-#skittle-area{padding:8px;border-bottom:1px solid var(--bd);flex-shrink:0;}
+.node[data-s="dop"].sel .nb{box-shadow:0 0 0 3px rgba(99,102,241,.35);}
+/* Dop sidebar section */
+#dop-area{padding:8px;border-bottom:1px solid var(--bd);flex-shrink:0;}
 .sk-row{display:flex;gap:5px;align-items:center;margin-bottom:6px;}
 .sk-type-btn{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--t2);
   font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;
@@ -546,17 +546,17 @@ select option{background:var(--s2);}
         <button class="shbtn" onclick="addNode('sub')"><svg width="28" height="18"><rect x="1" y="1" width="26" height="16" rx="2" fill="none" stroke="#6366f1" stroke-width="1.5"/><line x1="5" y1="1" x2="5" y2="17" stroke="#6366f1" stroke-width="1.5"/><line x1="23" y1="1" x2="23" y2="17" stroke="#6366f1" stroke-width="1.5"/></svg>Sub</button>
       </div>
       <div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px">
-        <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--t3);margin-bottom:5px">Quick Skittles</div>
+        <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--t3);margin-bottom:5px">Quick Dops</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
-          <button class="shbtn" onclick="setSkittleType('number');addSkittle()" title="Place next number skittle">
+          <button class="shbtn" onclick="setDopType('number');addDop()" title="Place next number dop">
             <svg width="28" height="18"><circle cx="14" cy="9" r="8" fill="none" stroke="#6366f1" stroke-width="1.5"/><text x="14" y="13" text-anchor="middle" fill="#6366f1" font-size="9" font-weight="700" font-family="monospace">1</text></svg>
             № Next
           </button>
-          <button class="shbtn" onclick="setSkittleType('letter');addSkittle()" title="Place next letter skittle">
+          <button class="shbtn" onclick="setDopType('letter');addDop()" title="Place next letter dop">
             <svg width="28" height="18"><circle cx="14" cy="9" r="8" fill="none" stroke="#6366f1" stroke-width="1.5"/><text x="14" y="13" text-anchor="middle" fill="#6366f1" font-size="9" font-weight="700" font-family="monospace">A</text></svg>
             Abc Next
           </button>
-          <button class="shbtn" onclick="openSkittlesSection()" title="Open Skittles panel for custom options">
+          <button class="shbtn" onclick="openDopsSection()" title="Open Dops panel for custom options">
             <svg width="28" height="18"><circle cx="14" cy="9" r="8" fill="none" stroke="#6366f1" stroke-width="1.5"/><text x="14" y="13" text-anchor="middle" fill="#6366f1" font-size="10" font-weight="700">…</text></svg>
             More…
           </button>
@@ -566,19 +566,19 @@ select option{background:var(--s2);}
 
     </div>
 
-    <div class="ph ph-toggle collapsed" onclick="toggleSection(this)">Skittles <span class="ph-arrow">▼</span></div>
+    <div class="ph ph-toggle collapsed" onclick="toggleSection(this)">Dops <span class="ph-arrow">▼</span></div>
     <div class="ph-collapsible" style="max-height:0">
-    <div id="skittle-area">
+    <div id="dop-area">
       <div style="font-size:10px;color:var(--t3);margin-bottom:7px;line-height:1.5">Numbered/lettered markers that auto-sequence. Match to an off-chart reference table.</div>
       <div class="sk-row">
-        <button class="sk-type-btn on" id="sk-num-btn" onclick="setSkittleType('number')">1 2 3</button>
-        <button class="sk-type-btn" id="sk-let-btn" onclick="setSkittleType('letter')">A B C</button>
-        <button class="sk-type-btn" id="sk-cus-btn" onclick="setSkittleType('custom')">Custom</button>
+        <button class="sk-type-btn on" id="sk-num-btn" onclick="setDopType('number')">1 2 3</button>
+        <button class="sk-type-btn" id="sk-let-btn" onclick="setDopType('letter')">A B C</button>
+        <button class="sk-type-btn" id="sk-cus-btn" onclick="setDopType('custom')">Custom</button>
       </div>
       <div class="sk-next" id="sk-next-label">Next: <span id="sk-next-val">1</span></div>
       <div class="sk-row" id="sk-custom-row" style="display:none">
         <input class="sk-size-input" style="width:100%;font-size:13px;padding:6px" id="sk-custom-val" placeholder="★, ✓, α…" maxlength="4"
-          onkeydown="if(event.key==='Enter')addSkittle()">
+          onkeydown="if(event.key==='Enter')addDop()">
       </div>
       <div class="sk-size-row">
         <span class="sk-size-label">Size:</span>
@@ -588,7 +588,7 @@ select option{background:var(--s2);}
         <span class="sk-size-label" style="margin-left:6px">Color:</span>
         <input type="color" id="sk-color" value="#6366f1" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--bd);padding:1px;background:var(--s2);cursor:pointer">
       </div>
-      <button class="imp-btn" style="margin-top:6px" onclick="addSkittle()">⬤ Add Skittle</button>
+      <button class="imp-btn" style="margin-top:6px" onclick="addDop()">⬤ Add Dop</button>
       <div class="sk-list" id="sk-list"></div>
     </div>
 
@@ -928,15 +928,15 @@ select option{background:var(--s2);}
       <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="addNode('cylinder');mobClose()">⌭ DB</button>
       <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="addNode('hex');mobClose()">⬡ Hex</button>
     </div>
-    <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--t3);margin-bottom:6px">Skittles</div>
+    <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--t3);margin-bottom:6px">Dops</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
-      <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="setSkittleType('number');addSkittle();mobClose()">
+      <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="setDopType('number');addDop();mobClose()">
         ⬤ № Next
       </button>
-      <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="setSkittleType('letter');addSkittle();mobClose()">
+      <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="setDopType('letter');addDop();mobClose()">
         ⬤ Abc Next
       </button>
-      <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="mobOpenSkittlePanel()">
+      <button class="shbtn" style="padding:10px 4px;font-size:11px" onclick="mobOpenDopPanel()">
         ⬤ Custom…
       </button>
     </div>
@@ -1150,6 +1150,8 @@ let zoom=1, panX=0, panY=0;
 let spaceDown=false, panning=false, panSX=0, panSY=0;
 let dragging=false, dragIds=[], dragOff={};
 let _wpDragging=false,_wpDragEdge=null,_wpDragIdx=0,_wpDragOrigX=0,_wpDragOrigY=0,_wpDragStartX=0,_wpDragStartY=0;
+let _epDragging=false,_epEdge=null,_epField=null,_epStartX=0,_epStartY=0;
+let _epSnapNode=null,_epSnapPort=null,_epCursorPos=null;
 let rotating=false, rotId=null, rotStartAngle=0, rotStartRot=0;
 let resizing=false, resId=null, resSX=0, resSY=0, resSW=0, resSH=0;
 let edging=false, eSrc=null, eSrcPort=null, eHoverNode=null, eHoverPort=null;
@@ -1209,8 +1211,8 @@ function renderNode(n){
   const rotDeg=n.rot||0;
   el.style.cssText=`left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px;${rotDeg?`transform-origin:center center;transform:rotate(${rotDeg}deg);`:''}`;
   const nb=el.querySelector('.nb');
-  // Keep skittles square (equal w/h) so border-radius:50% gives a circle
-  if(n.shape==='skittle'){
+  // Keep dops square (equal w/h) so border-radius:50% gives a circle
+  if(n.shape==='dop'){
     const sz=Math.max(n.w,n.h);
     n.w=sz; n.h=sz;
     el.style.cssText=`left:${n.x}px;top:${n.y}px;width:${sz}px;height:${sz}px;`;
@@ -1843,17 +1845,18 @@ function renderEdge(e){
   if(selEdgeId===e.id){
     const wps=e.waypoints||[];
 
-    // ── Draggable endpoint handles ──────────────────────────────────────
+
+    // ── Endpoint handles (drag to reconnect) ──────────────────────────
     [{pt:pXY(e.from,e.fromP),field:'from'},{pt:pXY(e.to,e.toP),field:'to'}].forEach(({pt,field})=>{
       const h=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      h.setAttribute('cx',pt.x);h.setAttribute('cy',pt.y);h.setAttribute('r',7);
+      h.setAttribute('cx',pt.x);h.setAttribute('cy',pt.y);h.setAttribute('r',8);
       h.setAttribute('fill',field==='from'?'#22c55e':'#ef4444');
-      h.setAttribute('stroke','#fff');h.setAttribute('stroke-width',2);
+      h.setAttribute('stroke','#fff');h.setAttribute('stroke-width',2.5);
       h.style.cursor='crosshair';
       h.addEventListener('pointerdown',ev=>{
         ev.stopPropagation();ev.preventDefault();
-        h.setPointerCapture(ev.pointerId);
-        startEndpointDrag(e.id,field,ev);
+        _epDragging=true;_epEdge=e;_epField=field;
+        _epStartX=ev.clientX;_epStartY=ev.clientY;
       });
       grp.appendChild(h);
     });
@@ -1915,7 +1918,7 @@ function rerenderEdges(){edges.forEach(renderEdge);}
 // ═══════════════════════════════════════════════════════
 function addSel(id){selIds.add(id);document.getElementById('nd-'+id)?.classList.add('sel');}
 function remSel(id){selIds.delete(id);document.getElementById('nd-'+id)?.classList.remove('sel');}
-function clearSel(){selIds.forEach(id=>document.getElementById('nd-'+id)?.classList.remove('sel'));selIds.clear();if(selEdgeId){selEdgeId=null;rerenderEdges();}updateProps();document.getElementById('multi-bar')?.classList.remove('show');if(typeof renderSkittleList==='function')renderSkittleList();}
+function clearSel(){selIds.forEach(id=>document.getElementById('nd-'+id)?.classList.remove('sel'));selIds.clear();if(selEdgeId){selEdgeId=null;rerenderEdges();}updateProps();document.getElementById('multi-bar')?.classList.remove('show');if(typeof renderDopList==='function')renderDopList();}
 function pickEdge(id){clearSel();selEdgeId=id;rerenderEdges();updateProps();}
 
 function updateProps(){
@@ -1979,7 +1982,7 @@ function updateProps(){
   // sync mobile props panel
   if(typeof updateMobProps==='function') updateMobProps();
   if(typeof updateMultiBar==='function') updateMultiBar();
-  if(typeof updateSkittleNext==='function') updateSkittleNext();
+  if(typeof updateDopNext==='function') updateDopNext();
 }
 function setC(pid,hid,v){const c=document.getElementById(pid),h=document.getElementById(hid);if(!c||!h)return;c.value=/^#[0-9a-fA-F]{6}$/.test(v)?v:'#000000';h.value=v||'';}
 function syncH(pid,hid){const c=document.getElementById(pid),h=document.getElementById(hid);if(c&&h)h.value=c.value;}
@@ -2090,7 +2093,7 @@ function setTool(t){
 function delSel(){pushUndo();
   if(selEdgeId){edges=edges.filter(e=>e.id!==selEdgeId);document.getElementById('eg-'+selEdgeId)?.remove();selEdgeId=null;updateProps();return;}
   selIds.forEach(id=>{delete nodes[id];document.getElementById('nd-'+id)?.remove();edges=edges.filter(e=>{if(e.from===id||e.to===id){document.getElementById('eg-'+e.id)?.remove();return false;}return true;});});clearSel();
-  if(typeof updateSkittleNext==='function')updateSkittleNext();
+  if(typeof updateDopNext==='function')updateDopNext();
 }
 function dupeSel(){pushUndo();const ns=[];selIds.forEach(id=>{const n=nodes[id];ns.push(mkNode({...n,x:n.x+24,y:n.y+24}));});clearSel();ns.forEach(n=>addSel(n.id));updateProps();toast('Duplicated');}
 
@@ -3660,7 +3663,7 @@ function buildExportSVGWithBg(bg){
       if(n.label&&ipos!=='none')out+=`<text x="${x+w/2}" y="${lby}" text-anchor="middle" fill="${tc}" font-size="${fs}" font-family="Inter,sans-serif">${xe(n.label)}</text>`;
       if(rotDeg)out+='</g>';return;
     }
-    if(shape==='skittle'){const r2=Math.min(w,h)/2;shp=`<circle cx="${x+r2}" cy="${y+r2}" r="${r2}" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"${dAttr}/>`;}
+    if(shape==='dop'){const r2=Math.min(w,h)/2;shp=`<circle cx="${x+r2}" cy="${y+r2}" r="${r2}" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"${dAttr}/>`;}
     else if(shape==='group')shp=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="${bw}" stroke-dasharray="8,4" opacity="0.85"/>`;
     else if(shape==='rect')shp=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"${dAttr}/>`;
     else if(shape==='round'||shape==='stadium')shp=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h/2}" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"${dAttr}/>`;
@@ -3672,7 +3675,7 @@ function buildExportSVGWithBg(bg){
     else if(shape==='sub')shp=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"/><line x1="${x+8}" y1="${y}" x2="${x+8}" y2="${y+h}" stroke="${stroke}" stroke-width="1.5"/><line x1="${x+w-8}" y1="${y}" x2="${x+w-8}" y2="${y+h}" stroke="${stroke}" stroke-width="1.5"/>`;
     else shp=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${fill}" stroke="${stroke}" stroke-width="${bw}"/>`;
     if(shp)out+=shp;
-    if(shape!=='skittle'&&shape!=='group'){
+    if(shape!=='dop'&&shape!=='group'){
       const ll=label.split('\n'),lh=fs*1.4,tot=ll.length*lh,ly=y+h/2-tot/2+fs*.8;
       const taMap={left:'start',center:'middle',right:'end'};
       const txAnchor=taMap[n.talign||'center'];
@@ -3778,10 +3781,10 @@ function roundWaypoints(){
   toast('Waypoints rounded ✓');
 }
 
-function openSkittlesSection(){
+function openDopsSection(){
   const headers = document.querySelectorAll('.ph-toggle');
   headers.forEach(h => {
-    if(h.textContent.trim().startsWith('Skittles')){
+    if(h.textContent.trim().startsWith('Dops')){
       if(h.classList.contains('collapsed')) toggleSection(h);
       h.scrollIntoView({behavior:'smooth', block:'start'});
     }
@@ -3909,18 +3912,18 @@ function applyMultiPreset(fill,stroke,tc){selIds.forEach(id=>{if(nodes[id]){node
 function applyMultiShape(shape){selIds.forEach(id=>{if(nodes[id]){nodes[id].shape=shape;renderNode(nodes[id]);}});}
 function updateMultiBar(){const bar=document.getElementById('multi-bar');if(!bar)return;if(selIds.size>=2){bar.classList.add('show');const mc=document.getElementById('multi-count');if(mc)mc.textContent=selIds.size+' selected';}else{bar.classList.remove('show');}}
 
-let skittleType='number';
-function getSkittleNodes(){return Object.values(nodes).filter(n=>n.shape==='skittle');}
-function getNumericSkittles(){return getSkittleNodes().map(n=>parseInt(n.label)).filter(v=>!isNaN(v));}
-function getLetterSkittles(){return getSkittleNodes().map(n=>n.label?.trim().toUpperCase()).filter(v=>/^[A-Z]+$/.test(v));}
+let dopType='number';
+function getDopNodes(){return Object.values(nodes).filter(n=>n.shape==='dop');}
+function getNumericDops(){return getDopNodes().map(n=>parseInt(n.label)).filter(v=>!isNaN(v));}
+function getLetterDops(){return getDopNodes().map(n=>n.label?.trim().toUpperCase()).filter(v=>/^[A-Z]+$/.test(v));}
 function letterToNum(s){return s.split('').reduce((acc,ch)=>acc*26+(ch.charCodeAt(0)-64),0);}
 function numToLetter(n){let s='';while(n>0){n--;s=String.fromCharCode(65+(n%26))+s;n=Math.floor(n/26);}return s;}
-function nextSkittleValue(){if(skittleType==='number'){const nums=getNumericSkittles();return nums.length?(Math.max(...nums)+1).toString():'1';}if(skittleType==='letter'){const letters=getLetterSkittles();if(!letters.length)return'A';const maxN=Math.max(...letters.map(letterToNum));return numToLetter(maxN+1);}return document.getElementById('sk-custom-val')?.value?.trim()||'★';}
-function updateSkittleNext(){const val=skittleType==='custom'?'?':nextSkittleValue();const el=document.getElementById('sk-next-val');if(el)el.textContent=val;renderSkittleList();}
-function renderSkittleList(){const wrap=document.getElementById('sk-list');if(!wrap)return;wrap.innerHTML='';const skNodes=getSkittleNodes();if(!skNodes.length){wrap.innerHTML='<span style="font-size:10px;color:var(--t3)">None placed yet</span>';return;}const sorted=[...skNodes].sort((a,b)=>{const an=parseInt(a.label),bn=parseInt(b.label);if(!isNaN(an)&&!isNaN(bn))return an-bn;return a.label.localeCompare(b.label);});sorted.forEach(n=>{const badge=document.createElement('div');badge.className='sk-badge'+(selIds.has(n.id)?' active':'');badge.textContent=n.label;badge.title='Click to select';badge.style.borderColor=n.stroke;badge.style.color=n.stroke;badge.onclick=()=>{clearSel();addSel(n.id);updateProps();const r=document.getElementById('cw').getBoundingClientRect();panX=r.width/2-(n.x+n.w/2)*zoom;panY=r.height/2-(n.y+n.h/2)*zoom;applyTx();};wrap.appendChild(badge);});}
-function setSkittleType(type){skittleType=type;document.getElementById('sk-num-btn')?.classList.toggle('on',type==='number');document.getElementById('sk-let-btn')?.classList.toggle('on',type==='letter');document.getElementById('sk-cus-btn')?.classList.toggle('on',type==='custom');const nl=document.getElementById('sk-next-label');if(nl)nl.style.display=type==='custom'?'none':'block';const cr=document.getElementById('sk-custom-row');if(cr)cr.style.display=type==='custom'?'flex':'none';updateSkittleNext();}
-function addSkittle(){const val=nextSkittleValue();if(!val){toast('Enter a value for custom skittle');return;}const sz=parseInt(document.getElementById('sk-size-range')?.value||String(window.PREFS?.sksize||40));const col=document.getElementById('sk-color')?.value||(window.PREFS?.skcolor||'#6366f1');const r=document.getElementById('cw').getBoundingClientRect();const cp=s2c(r.left+r.width/2,r.top+r.height/2);const existing=getSkittleNodes();const ox=(existing.length%5)*(sz+8);const oy=Math.floor(existing.length/5)*(sz+8);const n=mkNode({shape:'skittle',label:val,x:cp.x-sz/2+ox,y:cp.y-sz/2+oy,w:sz,h:sz,fill:col+'22',stroke:col,tc:col,bw:2.5,fs:Math.round(sz*.38),talign:'center',tvalign:'middle',bdash:'solid'});if(skittleType==='custom'){const sv=document.getElementById('sk-custom-val');if(sv)sv.value='';}clearSel();addSel(n.id);updateProps();updateSkittleNext();toast('Skittle "'+val+'" placed');}
-function initSkittles(){updateSkittleNext();}
+function nextDopValue(){if(dopType==='number'){const nums=getNumericDops();return nums.length?(Math.max(...nums)+1).toString():'1';}if(dopType==='letter'){const letters=getLetterDops();if(!letters.length)return'A';const maxN=Math.max(...letters.map(letterToNum));return numToLetter(maxN+1);}return document.getElementById('sk-custom-val')?.value?.trim()||'★';}
+function updateDopNext(){const val=dopType==='custom'?'?':nextDopValue();const el=document.getElementById('sk-next-val');if(el)el.textContent=val;renderDopList();}
+function renderDopList(){const wrap=document.getElementById('sk-list');if(!wrap)return;wrap.innerHTML='';const skNodes=getDopNodes();if(!skNodes.length){wrap.innerHTML='<span style="font-size:10px;color:var(--t3)">None placed yet</span>';return;}const sorted=[...skNodes].sort((a,b)=>{const an=parseInt(a.label),bn=parseInt(b.label);if(!isNaN(an)&&!isNaN(bn))return an-bn;return a.label.localeCompare(b.label);});sorted.forEach(n=>{const badge=document.createElement('div');badge.className='sk-badge'+(selIds.has(n.id)?' active':'');badge.textContent=n.label;badge.title='Click to select';badge.style.borderColor=n.stroke;badge.style.color=n.stroke;badge.onclick=()=>{clearSel();addSel(n.id);updateProps();const r=document.getElementById('cw').getBoundingClientRect();panX=r.width/2-(n.x+n.w/2)*zoom;panY=r.height/2-(n.y+n.h/2)*zoom;applyTx();};wrap.appendChild(badge);});}
+function setDopType(type){dopType=type;document.getElementById('sk-num-btn')?.classList.toggle('on',type==='number');document.getElementById('sk-let-btn')?.classList.toggle('on',type==='letter');document.getElementById('sk-cus-btn')?.classList.toggle('on',type==='custom');const nl=document.getElementById('sk-next-label');if(nl)nl.style.display=type==='custom'?'none':'block';const cr=document.getElementById('sk-custom-row');if(cr)cr.style.display=type==='custom'?'flex':'none';updateDopNext();}
+function addDop(){const val=nextDopValue();if(!val){toast('Enter a value for custom dop');return;}const sz=parseInt(document.getElementById('sk-size-range')?.value||String(window.PREFS?.sksize||40));const col=document.getElementById('sk-color')?.value||(window.PREFS?.skcolor||'#6366f1');const r=document.getElementById('cw').getBoundingClientRect();const cp=s2c(r.left+r.width/2,r.top+r.height/2);const existing=getDopNodes();const ox=(existing.length%5)*(sz+8);const oy=Math.floor(existing.length/5)*(sz+8);const n=mkNode({shape:'dop',label:val,x:cp.x-sz/2+ox,y:cp.y-sz/2+oy,w:sz,h:sz,fill:col+'22',stroke:col,tc:col,bw:2.5,fs:Math.round(sz*.38),talign:'center',tvalign:'middle',bdash:'solid'});if(dopType==='custom'){const sv=document.getElementById('sk-custom-val');if(sv)sv.value='';}clearSel();addSel(n.id);updateProps();updateDopNext();toast('Dop "'+val+'" placed');}
+function initDops(){updateDopNext();}
 const TXTICON_PRESETS=[['DB','Database'],['API','API'],['UI','UI'],['FE','Frontend'],['BE','Backend'],['SVC','Service'],['LB','Load Bal'],['MQ','Queue'],['K8s','Kubernetes'],['VM','VM'],['S3','Storage'],['CDN','CDN'],['DNS','DNS'],['VPC','Network'],['IAM','Auth'],['CI','CI/CD'],['Git','Git'],['PR','PR'],['Dev','Dev'],['QA','QA'],['1','Step 1'],['2','Step 2'],['3','Step 3'],['?','Unknown'],['!','Alert'],['A','Node A'],['B','Node B'],['C','Node C'],['i','Info'],['✓','Done']];
 function initTxtIconPresets(){const wrap=document.getElementById('txticon-presets');if(!wrap)return;TXTICON_PRESETS.forEach(([txt,lbl])=>{const b=document.createElement('button');b.title=lbl;b.style.cssText='background:var(--s2);border:1px solid var(--bd);color:var(--t1);font-family:"Arial Black",sans-serif;font-size:10px;font-weight:900;padding:4px 6px;border-radius:4px;cursor:pointer;min-width:32px;text-align:center;';b.textContent=txt;b.onmouseenter=()=>b.style.borderColor='var(--ac)';b.onmouseleave=()=>b.style.borderColor='var(--bd)';b.onclick=()=>addTextIconDirect(txt,lbl);wrap.appendChild(b);});}
 function addTextIcon(){const val=(document.getElementById('txticon-input')?.value||'').trim();if(!val){toast('Type something first');return;}addTextIconDirect(val,val);document.getElementById('txticon-input').value='';}
@@ -3954,7 +3957,7 @@ function setIconMode(mode){iconMode=mode;document.getElementById('imode-emoji')?
 function buildIconCats(){const cats=document.getElementById('icon-cats');if(!cats)return;cats.innerHTML='';const lib=iconMode==='mono'?SYMBOL_LIBRARY:ICON_LIBRARY;Object.keys(lib).forEach(cat=>{const b=document.createElement('button');b.className='icat'+(cat===currentIconCat?' on':'');b.textContent=cat;b.onclick=()=>{currentIconCat=cat;document.querySelectorAll('#icon-cats .icat').forEach(x=>x.classList.remove('on'));b.classList.add('on');filterIcons(document.getElementById('icon-search')?.value||'');};cats.appendChild(b);});}
 function filterIcons(query){const grid=document.getElementById('icon-grid');if(!grid)return;grid.innerHTML='';const q=query.toLowerCase().trim();const lib=iconMode==='mono'?SYMBOL_LIBRARY:ICON_LIBRARY;const isMono=iconMode==='mono';let items=q?[]:lib[currentIconCat]||[];if(q)Object.values(lib).forEach(arr=>arr.forEach(([em,lbl])=>{if(lbl.toLowerCase().includes(q)||em===q)items.push([em,lbl]);}));items.forEach(([em,lbl])=>{const div=document.createElement('div');div.className='icon-item';const fs=isMono?'font-family:Arial,sans-serif;font-size:22px;color:#e8ecf5':'font-size:24px';div.innerHTML='<span class="ie" style="'+fs+'">'+em+'</span><span class="il">'+lbl+'</span>';div.onclick=()=>{document.querySelectorAll('.icon-item').forEach(x=>x.classList.remove('picked'));div.classList.add('picked');pickedIcon=em;const ipb=document.getElementById('icon-place-btn');if(ipb)ipb.disabled=false;};grid.appendChild(div);});if(!items.length)grid.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center;grid-column:1/-1">No icons found</div>';}
 function placeIcon(){if(!pickedIcon)return;const sz=parseInt(document.getElementById('icon-size')?.value||'36');const isMono=iconMode==='mono';const shape=isMono?'txticon':'icon';const iconFont=isMono?'sans':'emoji';if(iconPickerMode==='change'&&pickedNodeId&&nodes[pickedNodeId]){nodes[pickedNodeId].icon=pickedIcon;nodes[pickedNodeId].iconSize=sz;nodes[pickedNodeId].shape=shape;nodes[pickedNodeId].iconFont=iconFont;renderNode(nodes[pickedNodeId]);updateProps();closeIconPicker();return;}const r=document.getElementById('cw').getBoundingClientRect();const cp=s2c(r.left+r.width/2,r.top+r.height/2);const nodeSz=sz+32;const n=mkNode({shape,icon:pickedIcon,iconFont:isMono?'sans':'emoji',iconSize:sz,iconLabelPos:'below',label:'',x:cp.x-nodeSz/2,y:cp.y-nodeSz/2,w:nodeSz,h:nodeSz+16,fill:'transparent',stroke:'transparent',bw:0,tc:'#f1f5f9',fs:11});clearSel();addSel(n.id);updateProps();closeIconPicker();toast('Icon placed');}
-function mobOpenSkittlePanel(){const val=prompt('Skittle value (blank = next number):','');if(val===null)return;if(val.trim()===''){setSkittleType('number');addSkittle();}else{const sk=document.getElementById('sk-custom-val');if(sk)sk.value=val.trim();setSkittleType('custom');addSkittle();}mobClose();}
+function mobOpenDopPanel(){const val=prompt('Dop value (blank = next number):','');if(val===null)return;if(val.trim()===''){setDopType('number');addDop();}else{const sk=document.getElementById('sk-custom-val');if(sk)sk.value=val.trim();setDopType('custom');addDop();}mobClose();}
 
 function getSelClassNode(){if(selIds.size!==1)return null;const n=nodes[[...selIds][0]];return(n&&n.shape==='classbox'&&n.classData)?n:null;}
 function updateClassEditor(){const row=document.getElementById('class-props-row');if(!row)return;const n=getSelClassNode();const nf=['p-lbl','p-shape','p-bdash'];if(!n){row.style.display='none';nf.forEach(id=>{const el=document.getElementById(id);if(el&&el.closest('.pr'))el.closest('.pr').style.display='';});['ta-left','tv-top'].forEach(id=>{const el=document.getElementById(id)?.closest('.pr');if(el)el.style.display='';});return;}row.style.display='flex';row.style.flexDirection='column';nf.forEach(id=>{const el=document.getElementById(id);if(el&&el.closest('.pr'))el.closest('.pr').style.display='none';});['ta-left','tv-top'].forEach(id=>{const el=document.getElementById(id)?.closest('.pr');if(el)el.style.display='none';});const cd=n.classData;const cn=document.getElementById('ce-classname');if(cn)cn.value=cd.name;const cs=document.getElementById('ce-stereotype');if(cs)cs.value=cd.stereotype||'';renderMemberList('ce-fields',cd.fields,n,'field');renderMemberList('ce-methods',cd.methods,n,'method');}
@@ -3990,10 +3993,26 @@ function applyPrefsToRuntime(){window._SNAP=PREFS.snap||10;window._GUIDE_THRESH=
 let currentPrefsTab='nodes';
 function openPrefs(){populatePrefsForm();buildPalettes();previewPrefs();document.getElementById('prefs-modal').classList.add('open');}
 function closePrefs(){document.getElementById('prefs-modal').classList.remove('open');}
-function prefsTab(tab){currentPrefsTab=tab;document.querySelectorAll('.ptab').forEach((b,i)=>{const tabs=['nodes','edges','skittles','canvas','advanced'];b.classList.toggle('on',tabs[i]===tab);});['nodes','edges','skittles','canvas','advanced'].forEach(t=>{const el=document.getElementById('ptab-'+t);if(el){el.style.display=t===tab?'flex':'none';if(t===tab)el.style.flexDirection='column';}});previewPrefs();}
+function prefsTab(tab){currentPrefsTab=tab;document.querySelectorAll('.ptab').forEach((b,i)=>{const tabs=['nodes','edges','dops','canvas','advanced'];b.classList.toggle('on',tabs[i]===tab);});['nodes','edges','dops','canvas','advanced'].forEach(t=>{const el=document.getElementById('ptab-'+t);if(el){el.style.display=t===tab?'flex':'none';if(t===tab)el.style.flexDirection='column';}});previewPrefs();}
 function populatePrefsForm(){const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};const sc=(cid,hid,val)=>{const v=/^#[0-9a-fA-F]{6}$/.test(val)?val:'#000000';set(cid,v);set(hid,val);};sc('pref-fill','pref-fill-h',PREFS.fill);sc('pref-stroke','pref-stroke-h',PREFS.stroke);sc('pref-tc','pref-tc-h',PREFS.tc);set('pref-fs',PREFS.fs);set('pref-bw',PREFS.bw);set('pref-bdash',PREFS.bdash);set('pref-shape',PREFS.shape);set('pref-w',PREFS.w);set('pref-h',PREFS.h);sc('pref-ecol','pref-ecol-h',PREFS.ecolor);set('pref-esty',PREFS.estyle);set('pref-earr',PREFS.earr);set('pref-ew',PREFS.ew);set('pref-eroute',PREFS.eroute||'bezier');document.getElementById('pref-spread').checked=!!(PREFS.spreadPorts);set('pref-clearance',PREFS.clearance||0);sc('pref-skcol','pref-skcol-h',PREFS.skcolor);set('pref-sksize',PREFS.sksize);sc('pref-expbg','pref-expbg-h',PREFS.expbg);set('pref-expscale',PREFS.expscale);set('pref-snap',PREFS.snap);set('pref-guide',PREFS.guide);}
 function readPrefsForm(){const g=id=>document.getElementById(id)?.value;return{fill:g('pref-fill')||PREFS.fill,stroke:g('pref-stroke')||PREFS.stroke,tc:g('pref-tc')||PREFS.tc,fs:parseFloat(g('pref-fs'))||13,bw:parseFloat(g('pref-bw'))||2,bdash:g('pref-bdash')||'solid',shape:g('pref-shape')||'rect',w:parseInt(g('pref-w'))||140,h:parseInt(g('pref-h'))||50,ecolor:g('pref-ecol')||'#6366f1',estyle:g('pref-esty')||'solid',earr:g('pref-earr')||'fwd',ew:parseFloat(g('pref-ew'))||2,eroute:g('pref-eroute')||'bezier',spreadPorts:document.getElementById('pref-spread')?.checked||false,clearance:parseInt(g('pref-clearance'))||0,skcolor:g('pref-skcol')||'#6366f1',sksize:parseInt(g('pref-sksize'))||40,expbg:g('pref-expbg')||'#0f1117',expscale:parseInt(g('pref-expscale'))||2,snap:parseInt(g('pref-snap'))||10,guide:parseInt(g('pref-guide'))||6};}
-function savePrefs(){PREFS=readPrefsForm();localStorage.setItem(PREFS_LS_KEY,JSON.stringify(PREFS));applyPrefsToRuntime();closePrefs();toast('Preferences saved');}
+function savePrefs(){
+  PREFS=readPrefsForm();
+  window.PREFS=PREFS;
+  localStorage.setItem(PREFS_LS_KEY,JSON.stringify(PREFS));
+  const applyAll=document.getElementById('pref-apply-all')?.checked!==false;
+  if(applyAll){
+    applyPrefsToRuntime();
+  } else {
+    // Apply only non-visual runtime settings (snap, guide, routing etc)
+    window._SNAP=PREFS.snap||10;
+    window._GUIDE_THRESH=PREFS.guide||6;
+    if(PREFS.expbg)exportBg=PREFS.expbg;
+    if(PREFS.eroute){edges.forEach(e=>{if(!e._routeLocked)e.route=PREFS.eroute;});updateRouteBtn();}
+    spreadEdgePorts();rerenderEdges();updateSpreadBtn();updateClearanceBtn();
+  }
+  closePrefs();toast('Preferences saved');
+}
 function resetPrefs(){if(!confirm('Reset all preferences to defaults?'))return;PREFS={...PREFS_DEFAULTS};localStorage.removeItem(PREFS_LS_KEY);populatePrefsForm();applyPrefsToRuntime();previewPrefs();toast('Reset to defaults');}
 function exportTheme(){const p=readPrefsForm();const data=JSON.stringify({_type:'chartcraft-theme',_version:1,_created:new Date().toISOString(),...p},null,2);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='team-theme.cctheme';a.click();toast('Theme exported');}
 function importTheme(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const data=JSON.parse(e.target.result);if(data._type!=='chartcraft-theme'){toast('Not a valid .cctheme file');return;}const{_type,_version,_created,...prefs}=data;PREFS={...PREFS_DEFAULTS,...prefs};localStorage.setItem(PREFS_LS_KEY,JSON.stringify(PREFS));populatePrefsForm();applyPrefsToRuntime();previewPrefs();toast('Theme imported');}catch(err){toast('Import failed');}};reader.readAsText(file);event.target.value='';}
@@ -4042,7 +4061,7 @@ window.addEventListener('load',()=>{
   applyTx();
   initPrefs();
   initTxtIconPresets();
-  initSkittles();
+  initDops();
   mermaid.initialize({startOnLoad:false,theme:'dark',securityLevel:'loose',themeVariables:{background:'#0f1117',primaryColor:'#1e2235',primaryTextColor:'#f1f5f9',primaryBorderColor:'#6366f1',lineColor:'#6366f1',secondaryColor:'#22263a',tertiaryColor:'#1a1d27',edgeLabelBackground:'#0f1117',titleColor:'#f1f5f9'},flowchart:{curve:'basis'},sequence:{useMaxWidth:false}});
   const n1=mkNode({label:'Start',x:80,y:160,shape:'round',fill:'#0f2e1e',stroke:'#22c55e',tc:'#fff'});
   const n2=mkNode({label:'Decision',x:300,y:155,shape:'diamond',fill:'#1a1d3c',stroke:'#6366f1',tc:'#fff',w:130,h:70});
@@ -4083,6 +4102,57 @@ function cwPD(e){
 }
 function cwPM(e){
   if(panning){panX=e.clientX-panSX;panY=e.clientY-panSY;applyTx();return;}
+  if(_epDragging&&_epEdge){
+    const cp=s2c(e.clientX,e.clientY);
+    const SNAP_R=50; // snap radius in canvas px
+    // Find closest PORT across all nodes
+    let bestNode=null,bestPort=null,bestD=Infinity;
+    Object.values(nodes).forEach(n=>{
+      if(n.shape==='group')return;
+      ['t','r','b','l'].forEach(port=>{
+        const pp=pXY(n.id,port);
+        const d=Math.hypot(cp.x-pp.x,cp.y-pp.y);
+        if(d<bestD){bestD=d;bestNode=n;bestPort=port;}
+      });
+    });
+    const snapping=bestNode&&bestD<SNAP_R;
+    const snapPt=snapping?pXY(bestNode.id,bestPort):cp;
+
+    // Ghost dot at snap point or cursor
+    let ghost=document.getElementById('ep-drag-ghost');
+    if(!ghost){
+      ghost=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      ghost.id='ep-drag-ghost';
+      ghost.setAttribute('fill',snapping?'rgba(34,197,94,0.25)':'rgba(99,102,241,0.25)');
+      ghost.setAttribute('stroke-width',2);
+      document.getElementById('esvg').appendChild(ghost);
+    }
+    ghost.setAttribute('cx',snapPt.x);ghost.setAttribute('cy',snapPt.y);
+    ghost.setAttribute('r',snapping?10:6);
+    ghost.setAttribute('stroke',snapping?'#22c55e':'#6366f1');
+    ghost.setAttribute('fill',snapping?'rgba(34,197,94,0.25)':'rgba(99,102,241,0.2)');
+
+    // Draw preview line from the fixed end to cursor/snap point
+    const fixedField=_epField==='from'?'to':'from';
+    const fixedPortField=_epField==='from'?'toP':'fromP';
+    const fixedPt=pXY(_epEdge[fixedField],_epEdge[fixedPortField]);
+    let prev=document.getElementById('ep-preview-line');
+    if(!prev){
+      prev=document.createElementNS('http://www.w3.org/2000/svg','line');
+      prev.id='ep-preview-line';
+      prev.setAttribute('stroke','#6366f1');prev.setAttribute('stroke-width',1.5);
+      prev.setAttribute('stroke-dasharray','6,3');prev.setAttribute('opacity','0.7');
+      document.getElementById('esvg').appendChild(prev);
+    }
+    prev.setAttribute('x1',fixedPt.x);prev.setAttribute('y1',fixedPt.y);
+    prev.setAttribute('x2',snapPt.x);prev.setAttribute('y2',snapPt.y);
+
+    // Store snap target for cwPU
+    _epSnapNode=snapping?bestNode:null;
+    _epSnapPort=snapping?bestPort:null;
+    _epCursorPos=cp;
+    return;
+  }
   if(_wpDragging&&_wpDragEdge){
     const snap=window._SNAP||10;
     const dx=(e.clientX-_wpDragStartX)/zoom,dy=(e.clientY-_wpDragStartY)/zoom;
@@ -4145,6 +4215,40 @@ function cwPM(e){
 }
 function cwPU(e){
   if(panning){panning=false;document.body.style.cursor='';return;}
+  if(_epDragging){
+    _epDragging=false;
+    const ghost=document.getElementById('ep-drag-ghost');if(ghost)ghost.remove();
+    const prev=document.getElementById('ep-preview-line');if(prev)prev.remove();
+    if(_epEdge){
+      if(_epSnapNode){
+        // Snap to specific port on a node
+        _epEdge[_epField]=_epSnapNode.id;
+        if(_epField==='from'){_epEdge.fromP=_epSnapPort;}
+        else                 {_epEdge.toP=_epSnapPort;}
+        _epEdge.waypoints=[];
+        const sel=document.getElementById('e-'+_epField);
+        if(sel)sel.value=_epSnapNode.id;
+      } else if(_epCursorPos){
+        // Free drop — no snap. Add a waypoint near the cursor so the
+        // edge visually ends there, staying attached to original node
+        // with a waypoint pull towards the cursor position
+        const cp=_epCursorPos;
+        if(!_epEdge.waypoints)_epEdge.waypoints=[];
+        if(_epField==='to'){
+          // Pull the end toward cursor by inserting waypoint before target
+          _epEdge.waypoints.push({x:cp.x,y:cp.y});
+        } else {
+          _epEdge.waypoints.unshift({x:cp.x,y:cp.y});
+        }
+        _epEdge.route='waypoint';
+      }
+      pushUndo();
+      renderEdge(_epEdge);
+      updateProps();
+    }
+    _epEdge=null;_epField=null;_epSnapNode=null;_epSnapPort=null;_epCursorPos=null;
+    return;
+  }
   if(_wpDragging){_wpDragging=false;_wpDragEdge=null;pushUndo();return;}
   if(rotating){endRotation();return;}
   if(resizing){resizing=false;resId=null;pushUndo();return;}
@@ -4296,7 +4400,7 @@ function clearWaypoints(){
     <div id="prefs-tabs" style="display:flex;border-bottom:1px solid var(--bd);flex-shrink:0;overflow-x:auto">
       <button class="ptab on" onclick="prefsTab('nodes')">Nodes</button>
       <button class="ptab" onclick="prefsTab('edges')">Edges</button>
-      <button class="ptab" onclick="prefsTab('skittles')">Skittles</button>
+      <button class="ptab" onclick="prefsTab('dops')">Dops</button>
       <button class="ptab" onclick="prefsTab('canvas')">Canvas</button>
       <button class="ptab" onclick="prefsTab('advanced')">Advanced</button>
     </div>
@@ -4327,8 +4431,8 @@ function clearWaypoints(){
         <div class="prow"><span class="plabel">Arrow</span><select class="pselect" id="pref-earr"><option value="fwd">→ Forward</option><option value="both">↔ Both</option><option value="none">─ None</option></select></div>
         <div class="prow"><span class="plabel">Width</span><input class="pinput" id="pref-ew" type="number" value="2" min=".5" max="10" step=".5"></div>
       </div>
-      <div id="ptab-skittles" class="pgroup" style="display:none;flex-direction:column;gap:8px">
-        <div class="pgroup-title">Default Skittle Style</div>
+      <div id="ptab-dops" class="pgroup" style="display:none;flex-direction:column;gap:8px">
+        <div class="pgroup-title">Default Dop Style</div>
         <div class="prow"><span class="plabel">Color</span><input type="color" class="pcolor" id="pref-skcol" value="#6366f1" oninput="previewPrefs()"><input class="pinput" id="pref-skcol-h" type="text" value="#6366f1" oninput="syncPrefColor('pref-skcol','pref-skcol-h')"></div>
         <div class="prow"><span class="plabel">Size (px)</span><input class="pinput" id="pref-sksize" type="number" value="40" min="20" max="100"></div>
         <div class="pgroup-title" style="margin-top:4px">Preview</div>
@@ -4355,6 +4459,7 @@ function clearWaypoints(){
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--bd);flex-shrink:0">
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer;margin-right:8px"><input type="checkbox" id="pref-apply-all" checked style="cursor:pointer"> Apply to canvas</label>
       <button onclick="savePrefs()" style="background:var(--ac);border:none;color:#fff;font-family:Inter,sans-serif;font-size:12px;font-weight:600;padding:8px 18px;border-radius:6px;cursor:pointer">✓ Save Preferences</button>
       <button onclick="closePrefs()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);font-family:Inter,sans-serif;font-size:12px;padding:8px 14px;border-radius:6px;cursor:pointer">Cancel</button>
     </div>
@@ -5434,74 +5539,6 @@ function redirectEdge(field, newNodeId){
   pushUndo();
 }
 
-let _epDrag=null;
-
-function startEndpointDrag(edgeId,field,ev){
-  _epDrag={edgeId,field};
-  document.addEventListener('pointermove',_onEpMove);
-  document.addEventListener('pointerup',_onEpUp);
-}
-
-function _onEpMove(ev){
-  if(!_epDrag)return;
-  const e=edges.find(e=>e.id===_epDrag.edgeId);
-  if(!e)return;
-  const cp=s2c(ev.clientX,ev.clientY);
-  // Find closest node under cursor
-  let best=null,bestD=Infinity;
-  Object.values(nodes).forEach(n=>{
-    if(n.shape==='group')return;
-    const d=Math.hypot(cp.x-(n.x+n.w/2),cp.y-(n.y+n.h/2));
-    if(d<bestD){bestD=d;best=n;}
-  });
-  // Ghost indicator
-  let ghost=document.getElementById('ep-drag-ghost');
-  if(!ghost){
-    ghost=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    ghost.id='ep-drag-ghost';ghost.setAttribute('fill','none');
-    ghost.setAttribute('stroke-width',2);ghost.setAttribute('stroke-dasharray','4,3');
-    document.getElementById('esvg').appendChild(ghost);
-  }
-  if(best&&bestD<80){
-    ghost.setAttribute('cx',best.x+best.w/2);ghost.setAttribute('cy',best.y+best.h/2);
-    ghost.setAttribute('r',Math.max(best.w,best.h)/2+8);
-    ghost.setAttribute('stroke','#22c55e');
-  } else {
-    ghost.setAttribute('cx',cp.x);ghost.setAttribute('cy',cp.y);
-    ghost.setAttribute('r',12);ghost.setAttribute('stroke','#6366f1');
-  }
-}
-
-function _onEpUp(ev){
-  if(!_epDrag)return;
-  document.removeEventListener('pointermove',_onEpMove);
-  document.removeEventListener('pointerup',_onEpUp);
-  const ghost=document.getElementById('ep-drag-ghost');
-  if(ghost)ghost.remove();
-  const e=edges.find(e=>e.id===_epDrag.edgeId);
-  if(e){
-    const cp=s2c(ev.clientX,ev.clientY);
-    let best=null,bestD=Infinity;
-    Object.values(nodes).forEach(n=>{
-      if(n.shape==='group')return;
-      const d=Math.hypot(cp.x-(n.x+n.w/2),cp.y-(n.y+n.h/2));
-      if(d<bestD){bestD=d;best=n;}
-    });
-    if(best&&bestD<80){
-      e[_epDrag.field]=best.id;
-      const[fp,tp]=bestPorts(e.from,e.to);
-      e.fromP=fp;e.toP=tp;
-      e.waypoints=[];
-      renderEdge(e);
-      const sel=document.getElementById('e-'+_epDrag.field);
-      if(sel)sel.value=best.id;
-      pushUndo();
-    } else {
-      renderEdge(e);
-    }
-  }
-  _epDrag=null;
-}
 
 function spreadEdgePorts(){
   if(!PREFS.spreadPorts) return;
