@@ -494,6 +494,8 @@ select option{background:var(--s2);}
   <button class="btn" onclick="fitView()">⊞ Fit</button>
   <div class="spc"></div>
   <button class="btn" id="route-btn" title="Toggle all edges: Bezier ↔ Ortho" onclick="toggleRouteMode()">⌐ Bezier</button>
+  <button class="btn" id="spread-btn" title="Fan out edges on crowded nodes" onclick="toggleSpreadPorts()">⇶ Spread</button>
+  <button class="btn" id="clearance-btn" title="Route edges around nodes" onclick="cycleClearance()">◎ Clearance: Off</button>
   <button class="btn" onclick="openPrefs()">⚙ Prefs</button>
   <button class="btn" onclick="openSaveModal()">💾 Save</button>
   <button class="btn" onclick="openSaveModal('load')">📂 Load</button>
@@ -1372,15 +1374,21 @@ function inlineEdit(id){
 // ═══════════════════════════════════════════════════════
 function pXY(nid,port){
   const n=nodes[nid];if(!n)return{x:0,y:0};
-  // Get unrotated port position relative to node centre
   const cx=n.x+n.w/2, cy=n.y+n.h/2;
+  // Support fractional port: 't:0.3' means 30% along the top edge from left
+  let face=port, frac=0.5;
+  if(port&&port.includes(':')){
+    const parts=port.split(':');
+    face=parts[0];
+    frac=parseFloat(parts[1]);
+    if(isNaN(frac))frac=0.5;
+  }
   let px,py;
-  if(port==='t'){px=cx;py=n.y;}
-  else if(port==='r'){px=n.x+n.w;py=cy;}
-  else if(port==='b'){px=cx;py=n.y+n.h;}
-  else if(port==='l'){px=n.x;py=cy;}
+  if(face==='t'){px=n.x+n.w*frac;py=n.y;}
+  else if(face==='r'){px=n.x+n.w;py=n.y+n.h*frac;}
+  else if(face==='b'){px=n.x+n.w*frac;py=n.y+n.h;}
+  else if(face==='l'){px=n.x;py=n.y+n.h*frac;}
   else return{x:cx,y:cy};
-  // Apply rotation around centre
   if(n.rot){
     const rad=n.rot*Math.PI/180;
     const dx=px-cx, dy=py-cy;
@@ -1414,8 +1422,17 @@ function edgeCtrlPts(e){
   const f=pXY(e.from,e.fromP),t=pXY(e.to,e.toP);
   const dx=t.x-f.x,dy=t.y-f.y,d=Math.sqrt(dx*dx+dy*dy),ctrl=Math.max(50,d*.4);
   let c1x=f.x,c1y=f.y,c2x=t.x,c2y=t.y;
-  if(e.fromP==='r')c1x+=ctrl;else if(e.fromP==='l')c1x-=ctrl;else if(e.fromP==='b')c1y+=ctrl;else c1y-=ctrl;
-  if(e.toP==='r')c2x+=ctrl;else if(e.toP==='l')c2x-=ctrl;else if(e.toP==='b')c2y+=ctrl;else c2y-=ctrl;
+  const fromFace=e.fromP?e.fromP.split(':')[0]:'b';
+  const toFace=e.toP?e.toP.split(':')[0]:'t';
+  if(fromFace==='r')c1x+=ctrl;else if(fromFace==='l')c1x-=ctrl;else if(fromFace==='b')c1y+=ctrl;else c1y-=ctrl;
+  if(toFace==='r')c2x+=ctrl;else if(toFace==='l')c2x-=ctrl;else if(toFace==='b')c2y+=ctrl;else c2y-=ctrl;
+  // Node clearance: if straight path hits a node, nudge ctrl points
+  const pad=getNodeClearance();
+  if(pad>0){
+    const excl=new Set([e.from,e.to]);
+    const det=getDetourForSegment(f,t,excl,pad);
+    if(det){c1x+=det.x*0.5;c1y+=det.y*0.5;c2x+=det.x*0.5;c2y+=det.y*0.5;}
+  }
   return{f,t,c1x,c1y,c2x,c2y};
 }
 function bezierPt(f,c1x,c1y,c2x,c2y,t2,end){
@@ -1609,17 +1626,23 @@ function buildOrthoPath(e){
     const a=all[i],b=all[i+1];
     if(wps.length===0){
       // Auto: leave source port horizontally/vertically then turn
-      const fromP=e.fromP,toP=e.toP;
+      const fromP=(e.fromP||'b').split(':')[0],toP=(e.toP||'t').split(':')[0];
       if(i===0){
         const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
         if(fromP==='r'||fromP==='l'){
-          // H then V
-          d+=` L ${mx.toFixed(1)} ${a.y.toFixed(1)} L ${mx.toFixed(1)} ${b.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-          pts.push({x:mx,y:a.y},{x:mx,y:b.y},b);
+          // H then V — apply clearance to vertical segment midpoint
+          const pad2=getNodeClearance();
+          let omx=mx;
+          if(pad2>0){const excl=new Set([e.from,e.to]);const det=getDetourForSegment({x:a.x,y:a.y},{x:b.x,y:b.y},excl,pad2);if(det)omx=mx+det.x;}
+          d+=` L ${omx.toFixed(1)} ${a.y.toFixed(1)} L ${omx.toFixed(1)} ${b.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+          pts.push({x:omx,y:a.y},{x:omx,y:b.y},b);
         } else {
           // V then H
-          d+=` L ${a.x.toFixed(1)} ${my.toFixed(1)} L ${b.x.toFixed(1)} ${my.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-          pts.push({x:a.x,y:my},{x:b.x,y:my},b);
+          const pad2=getNodeClearance();
+          let omy=my;
+          if(pad2>0){const excl=new Set([e.from,e.to]);const det=getDetourForSegment({x:a.x,y:a.y},{x:b.x,y:b.y},excl,pad2);if(det)omy=my+det.y;}
+          d+=` L ${a.x.toFixed(1)} ${omy.toFixed(1)} L ${b.x.toFixed(1)} ${omy.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+          pts.push({x:a.x,y:omy},{x:b.x,y:omy},b);
         }
       }
     } else {
@@ -2405,6 +2428,7 @@ function parseFlow(lines){
   drawSubgraphBoxes(subgraphs, nm);
 
   edgeDefs.forEach(d=>{const[fp,tp]=bestPorts(d.from,d.to);mkEdge({...d,fromP:fp,toP:tp});});
+  spreadEdgePorts();
 }
 
 // Layout that groups subgraph nodes together, then arranges subgraphs in a grid
@@ -3956,16 +3980,19 @@ function liveReqField(field,val){const n=getSelReqNode();if(!n)return;if(field==
 function reRenderReqNode(n){const PROP_H=20,HDR_H=36,PAD=8;const props=Object.entries(n.reqData.props||{});n.h=Math.max(60,HDR_H+(props.length?props.length*PROP_H+PAD:PAD));n.w=Math.max(n.w,Math.max(180,n.reqData.name.length*8+40,...props.map(([k,v])=>(k+': '+v).length*7+20)));renderNode(n);rerenderEdges();}
 
 const PREFS_LS_KEY='chartcraft_prefs';
-const PREFS_DEFAULTS={fill:'#1e2235',stroke:'#6366f1',tc:'#f1f5f9',fs:13,bw:2,bdash:'solid',shape:'rect',w:140,h:50,ecolor:'#6366f1',estyle:'solid',earr:'fwd',ew:2,eroute:'bezier',skcolor:'#6366f1',sksize:40,expbg:'#0f1117',expscale:2,snap:10,guide:6};
+const PREFS_DEFAULTS={fill:'#1e2235',stroke:'#6366f1',tc:'#f1f5f9',fs:13,bw:2,bdash:'solid',shape:'rect',w:140,h:50,ecolor:'#6366f1',estyle:'solid',earr:'fwd',ew:2,eroute:'bezier',spreadPorts:false,clearance:0,skcolor:'#6366f1',sksize:40,expbg:'#0f1117',expscale:2,snap:10,guide:6};
 let PREFS={...PREFS_DEFAULTS};
 function loadPrefs(){try{const s=localStorage.getItem(PREFS_LS_KEY);if(s)PREFS={...PREFS_DEFAULTS,...JSON.parse(s)};}catch(e){PREFS={...PREFS_DEFAULTS};}applyPrefsToRuntime();}
-function applyPrefsToRuntime(){window._SNAP=PREFS.snap||10;window._GUIDE_THRESH=PREFS.guide||6;const skc=document.getElementById('sk-color');if(skc&&/^#[0-9a-fA-F]{6}$/.test(PREFS.skcolor))skc.value=PREFS.skcolor;const sks=document.getElementById('sk-size-range');if(sks){sks.value=PREFS.sksize||40;const sv=document.getElementById('sk-size-val');if(sv)sv.textContent=sks.value;}if(PREFS.expbg)exportBg=PREFS.expbg;if(PREFS.eroute){edges.forEach(e=>{if(!e._routeLocked){e.route=PREFS.eroute;}});rerenderEdges();updateRouteBtn();}}
+function applyPrefsToRuntime(){window._SNAP=PREFS.snap||10;window._GUIDE_THRESH=PREFS.guide||6;const skc=document.getElementById('sk-color');if(skc&&/^#[0-9a-fA-F]{6}$/.test(PREFS.skcolor))skc.value=PREFS.skcolor;const sks=document.getElementById('sk-size-range');if(sks){sks.value=PREFS.sksize||40;const sv=document.getElementById('sk-size-val');if(sv)sv.textContent=sks.value;}if(PREFS.expbg)exportBg=PREFS.expbg;if(PREFS.eroute){edges.forEach(e=>{if(!e._routeLocked){e.route=PREFS.eroute;}});updateRouteBtn();}
+  // Reset fractional ports before re-spreading so toggling off clears them
+  if(!PREFS.spreadPorts){edges.forEach(e=>{if(e.fromP&&e.fromP.includes(':'))e.fromP=e.fromP.split(':')[0];if(e.toP&&e.toP.includes(':'))e.toP=e.toP.split(':')[0];});}
+  spreadEdgePorts();rerenderEdges();updateSpreadBtn();updateClearanceBtn();}
 let currentPrefsTab='nodes';
 function openPrefs(){populatePrefsForm();buildPalettes();previewPrefs();document.getElementById('prefs-modal').classList.add('open');}
 function closePrefs(){document.getElementById('prefs-modal').classList.remove('open');}
 function prefsTab(tab){currentPrefsTab=tab;document.querySelectorAll('.ptab').forEach((b,i)=>{const tabs=['nodes','edges','skittles','canvas','advanced'];b.classList.toggle('on',tabs[i]===tab);});['nodes','edges','skittles','canvas','advanced'].forEach(t=>{const el=document.getElementById('ptab-'+t);if(el){el.style.display=t===tab?'flex':'none';if(t===tab)el.style.flexDirection='column';}});previewPrefs();}
-function populatePrefsForm(){const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};const sc=(cid,hid,val)=>{const v=/^#[0-9a-fA-F]{6}$/.test(val)?val:'#000000';set(cid,v);set(hid,val);};sc('pref-fill','pref-fill-h',PREFS.fill);sc('pref-stroke','pref-stroke-h',PREFS.stroke);sc('pref-tc','pref-tc-h',PREFS.tc);set('pref-fs',PREFS.fs);set('pref-bw',PREFS.bw);set('pref-bdash',PREFS.bdash);set('pref-shape',PREFS.shape);set('pref-w',PREFS.w);set('pref-h',PREFS.h);sc('pref-ecol','pref-ecol-h',PREFS.ecolor);set('pref-esty',PREFS.estyle);set('pref-earr',PREFS.earr);set('pref-ew',PREFS.ew);set('pref-eroute',PREFS.eroute||'bezier');sc('pref-skcol','pref-skcol-h',PREFS.skcolor);set('pref-sksize',PREFS.sksize);sc('pref-expbg','pref-expbg-h',PREFS.expbg);set('pref-expscale',PREFS.expscale);set('pref-snap',PREFS.snap);set('pref-guide',PREFS.guide);}
-function readPrefsForm(){const g=id=>document.getElementById(id)?.value;return{fill:g('pref-fill')||PREFS.fill,stroke:g('pref-stroke')||PREFS.stroke,tc:g('pref-tc')||PREFS.tc,fs:parseFloat(g('pref-fs'))||13,bw:parseFloat(g('pref-bw'))||2,bdash:g('pref-bdash')||'solid',shape:g('pref-shape')||'rect',w:parseInt(g('pref-w'))||140,h:parseInt(g('pref-h'))||50,ecolor:g('pref-ecol')||'#6366f1',estyle:g('pref-esty')||'solid',earr:g('pref-earr')||'fwd',ew:parseFloat(g('pref-ew'))||2,eroute:g('pref-eroute')||'bezier',skcolor:g('pref-skcol')||'#6366f1',sksize:parseInt(g('pref-sksize'))||40,expbg:g('pref-expbg')||'#0f1117',expscale:parseInt(g('pref-expscale'))||2,snap:parseInt(g('pref-snap'))||10,guide:parseInt(g('pref-guide'))||6};}
+function populatePrefsForm(){const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};const sc=(cid,hid,val)=>{const v=/^#[0-9a-fA-F]{6}$/.test(val)?val:'#000000';set(cid,v);set(hid,val);};sc('pref-fill','pref-fill-h',PREFS.fill);sc('pref-stroke','pref-stroke-h',PREFS.stroke);sc('pref-tc','pref-tc-h',PREFS.tc);set('pref-fs',PREFS.fs);set('pref-bw',PREFS.bw);set('pref-bdash',PREFS.bdash);set('pref-shape',PREFS.shape);set('pref-w',PREFS.w);set('pref-h',PREFS.h);sc('pref-ecol','pref-ecol-h',PREFS.ecolor);set('pref-esty',PREFS.estyle);set('pref-earr',PREFS.earr);set('pref-ew',PREFS.ew);set('pref-eroute',PREFS.eroute||'bezier');document.getElementById('pref-spread').checked=!!(PREFS.spreadPorts);set('pref-clearance',PREFS.clearance||0);sc('pref-skcol','pref-skcol-h',PREFS.skcolor);set('pref-sksize',PREFS.sksize);sc('pref-expbg','pref-expbg-h',PREFS.expbg);set('pref-expscale',PREFS.expscale);set('pref-snap',PREFS.snap);set('pref-guide',PREFS.guide);}
+function readPrefsForm(){const g=id=>document.getElementById(id)?.value;return{fill:g('pref-fill')||PREFS.fill,stroke:g('pref-stroke')||PREFS.stroke,tc:g('pref-tc')||PREFS.tc,fs:parseFloat(g('pref-fs'))||13,bw:parseFloat(g('pref-bw'))||2,bdash:g('pref-bdash')||'solid',shape:g('pref-shape')||'rect',w:parseInt(g('pref-w'))||140,h:parseInt(g('pref-h'))||50,ecolor:g('pref-ecol')||'#6366f1',estyle:g('pref-esty')||'solid',earr:g('pref-earr')||'fwd',ew:parseFloat(g('pref-ew'))||2,eroute:g('pref-eroute')||'bezier',spreadPorts:document.getElementById('pref-spread')?.checked||false,clearance:parseInt(g('pref-clearance'))||0,skcolor:g('pref-skcol')||'#6366f1',sksize:parseInt(g('pref-sksize'))||40,expbg:g('pref-expbg')||'#0f1117',expscale:parseInt(g('pref-expscale'))||2,snap:parseInt(g('pref-snap'))||10,guide:parseInt(g('pref-guide'))||6};}
 function savePrefs(){PREFS=readPrefsForm();localStorage.setItem(PREFS_LS_KEY,JSON.stringify(PREFS));applyPrefsToRuntime();closePrefs();toast('Preferences saved');}
 function resetPrefs(){if(!confirm('Reset all preferences to defaults?'))return;PREFS={...PREFS_DEFAULTS};localStorage.removeItem(PREFS_LS_KEY);populatePrefsForm();applyPrefsToRuntime();previewPrefs();toast('Reset to defaults');}
 function exportTheme(){const p=readPrefsForm();const data=JSON.stringify({_type:'chartcraft-theme',_version:1,_created:new Date().toISOString(),...p},null,2);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='team-theme.cctheme';a.click();toast('Theme exported');}
@@ -3974,7 +4001,7 @@ function previewPrefs(){const p=readPrefsForm();const np=document.getElementById
 function syncPrefColor(pickerId,hexId){const picker=document.getElementById(pickerId);const hex=document.getElementById(hexId);if(!picker||!hex)return;if(document.activeElement===picker)hex.value=picker.value;else if(/^#[0-9a-fA-F]{6}$/.test(hex.value))picker.value=hex.value;previewPrefs();}
 const THEME_PALETTES=[{name:'Indigo',fill:'#1e2235',stroke:'#6366f1',tc:'#f1f5f9'},{name:'Green',fill:'#0f2e1e',stroke:'#22c55e',tc:'#f0fdf4'},{name:'Red',fill:'#2e0f0e',stroke:'#ef4444',tc:'#fff1f2'},{name:'Purple',fill:'#1e1540',stroke:'#a855f7',tc:'#faf5ff'},{name:'Yellow',fill:'#2a2100',stroke:'#eab308',tc:'#fefce8'},{name:'Cyan',fill:'#052e36',stroke:'#06b6d4',tc:'#ecfeff'},{name:'Slate',fill:'#1e293b',stroke:'#94a3b8',tc:'#f8fafc'},{name:'Dark',fill:'#0f1117',stroke:'#2e3350',tc:'#94a3b8'},{name:'Light',fill:'#f8fafc',stroke:'#64748b',tc:'#1e293b'},{name:'Navy',fill:'#0f1a2e',stroke:'#4f8ef7',tc:'#e8ecf5'}];
 function buildPalettes(){const wrap=document.getElementById('pref-palettes');if(!wrap)return;wrap.innerHTML='';THEME_PALETTES.forEach(p=>{const b=document.createElement('button');b.title=p.name;b.style.cssText='background:'+p.fill+';border:2px solid '+p.stroke+';color:'+p.tc+';font-family:Inter,sans-serif;font-size:10px;font-weight:600;padding:5px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;';b.textContent=p.name;b.onclick=()=>{['pref-fill','pref-fill-h'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=p.fill;});['pref-stroke','pref-stroke-h'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=p.stroke;});['pref-tc','pref-tc-h'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=p.tc;});previewPrefs();};wrap.appendChild(b);});}
-function initPrefs(){loadPrefs();updateRouteBtn();}
+function initPrefs(){loadPrefs();updateRouteBtn();updateSpreadBtn();updateClearanceBtn();}
 function setTaBtn(v){['left','center','right'].forEach(a=>{const b=document.getElementById('ta-'+a);if(b){b.style.borderColor=a===v?'var(--ac)':'';b.style.color=a===v?'var(--ac)':'';}});}
 function setTvBtn(v){const map={top:'top',middle:'mid',bottom:'bot'};['top','middle','bottom'].forEach(a=>{const b=document.getElementById('tv-'+map[a]);if(b){b.style.borderColor=a===v?'var(--ac)':'';b.style.color=a===v?'var(--ac)':'';}});}
 
@@ -4295,6 +4322,8 @@ function clearWaypoints(){
         <div class="prow"><span class="plabel">Color</span><input type="color" class="pcolor" id="pref-ecol" value="#6366f1" oninput="previewPrefs()"><input class="pinput" id="pref-ecol-h" type="text" value="#6366f1" oninput="syncPrefColor('pref-ecol','pref-ecol-h')"></div>
         <div class="prow"><span class="plabel">Line Style</span><select class="pselect" id="pref-esty"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div>
         <div class="prow"><span class="plabel">Routing</span><select class="pselect" id="pref-eroute" onchange="previewPrefs()"><option value="bezier">Bezier (curved)</option><option value="ortho">Orthogonal</option></select></div>
+        <div class="prow"><span class="plabel">Spread Ports</span><input type="checkbox" id="pref-spread" onchange="previewPrefs()" title="Fan out multiple edges on same port across the node face" style="width:18px;height:18px;cursor:pointer"></div>
+        <div class="prow"><span class="plabel">Node Clearance</span><input class="pinput" id="pref-clearance" type="number" value="0" min="0" max="200" step="10" oninput="previewPrefs()" title="Extra padding around nodes that edges route around (0=off)"> px</div>
         <div class="prow"><span class="plabel">Arrow</span><select class="pselect" id="pref-earr"><option value="fwd">→ Forward</option><option value="both">↔ Both</option><option value="none">─ None</option></select></div>
         <div class="prow"><span class="plabel">Width</span><input class="pinput" id="pref-ew" type="number" value="2" min=".5" max="10" step=".5"></div>
       </div>
@@ -5472,5 +5501,119 @@ function _onEpUp(ev){
     }
   }
   _epDrag=null;
+}
+
+function spreadEdgePorts(){
+  if(!PREFS.spreadPorts) return;
+  // Group edges by (nodeId, port face) for both from and to ends
+  const portGroups={}; // key: 'nodeId:face' -> [{edge,end}]
+  edges.forEach(e=>{
+    const fFace=(e.fromP||'b').split(':')[0];
+    const tFace=(e.toP||'t').split(':')[0];
+    const fKey=e.from+':'+fFace;
+    const tKey=e.to+':'+tFace;
+    if(!portGroups[fKey])portGroups[fKey]=[];
+    if(!portGroups[tKey])portGroups[tKey]=[];
+    portGroups[fKey].push({e,end:'from',face:fFace});
+    portGroups[tKey].push({e,end:'to',  face:tFace});
+  });
+  // For groups with >1 edge, spread attachment points along the face
+  Object.entries(portGroups).forEach(([key,group])=>{
+    if(group.length<2)return;
+    const n=group.length;
+    // Spread: leave 15% margin on each side, divide remainder equally
+    const MARGIN=0.15;
+    const span=1-MARGIN*2;
+    group.forEach(({e,end,face},i)=>{
+      const frac=MARGIN+span*(i/(n-1));
+      if(end==='from') e.fromP=face+':'+frac.toFixed(3);
+      else             e.toP  =face+':'+frac.toFixed(3);
+    });
+  });
+}
+
+function getNodeClearance(){
+  return (PREFS.clearance||0);
+}
+
+// Returns true if segment from p1 to p2 passes through node n's expanded bbox
+function segmentHitsNode(p1,p2,n,pad){
+  const x1=n.x-pad,y1=n.y-pad,x2=n.x+n.w+pad,y2=n.y+n.h+pad;
+  // AABB vs segment intersection
+  const dx=p2.x-p1.x, dy=p2.y-p1.y;
+  let tMin=0,tMax=1;
+  for(const[lo,hi,d,o]of[[x1,x2,dx,p1.x],[y1,y2,dy,p1.y]]){
+    if(Math.abs(d)<0.001){if(o<lo||o>hi)return false;}
+    else{let t0=(lo-o)/d,t1=(hi-o)/d;if(t0>t1)[t0,t1]=[t1,t0];tMin=Math.max(tMin,t0);tMax=Math.min(tMax,t1);if(tMin>tMax)return false;}
+  }
+  return true;
+}
+
+// Find a clearance-detour point for a segment that passes through nodes
+// Returns an offset {dx,dy} to add to the segment midpoint, or null
+function getDetourForSegment(p1,p2,excludeIds,pad){
+  if(pad<=0)return null;
+  let worstNode=null,worstOverlap=0;
+  Object.values(nodes).forEach(n=>{
+    if(excludeIds.has(n.id)||n.shape==='group')return;
+    if(!segmentHitsNode(p1,p2,n,pad))return;
+    // Score by how much the node center is near the segment midpoint
+    const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+    const d=Math.hypot(n.x+n.w/2-mx,n.y+n.h/2-my);
+    if(d<worstOverlap||worstNode===null){worstOverlap=d;worstNode=n;}
+  });
+  if(!worstNode)return null;
+  // Detour: move midpoint perpendicular to segment, away from node center
+  const len=Math.hypot(p2.x-p1.x,p2.y-p1.y)||1;
+  const nx2=-(p2.y-p1.y)/len,ny2=(p2.x-p1.x)/len; // perpendicular
+  const nc={x:worstNode.x+worstNode.w/2,y:worstNode.y+worstNode.h/2};
+  const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+  // Determine which side of segment the node is on
+  const side=Math.sign((nc.x-mx)*nx2+(nc.y-my)*ny2)||1;
+  const detourAmt=Math.max(worstNode.w,worstNode.h)/2+pad+20;
+  return{x:-side*nx2*detourAmt,y:-side*ny2*detourAmt};
+}
+
+function updateSpreadBtn(){
+  const btn=document.getElementById('spread-btn');
+  if(!btn)return;
+  const on=!!(PREFS.spreadPorts);
+  btn.textContent='⇶ Spread'+(on?' ✓':'');
+  btn.classList.toggle('on',on);
+  const cb=document.getElementById('pref-spread');
+  if(cb)cb.checked=on;
+}
+function toggleSpreadPorts(){
+  PREFS.spreadPorts=!PREFS.spreadPorts;
+  localStorage.setItem('cc_prefs',JSON.stringify(PREFS));
+  if(!PREFS.spreadPorts){
+    // Reset all fractional ports back to cardinal
+    edges.forEach(e=>{
+      if(e.fromP&&e.fromP.includes(':'))e.fromP=e.fromP.split(':')[0];
+      if(e.toP&&e.toP.includes(':'))e.toP=e.toP.split(':')[0];
+    });
+  }
+  spreadEdgePorts();
+  rerenderEdges();
+  updateSpreadBtn();
+}
+
+function updateClearanceBtn(){
+  const btn=document.getElementById('clearance-btn');
+  if(!btn)return;
+  const v=PREFS.clearance||0;
+  btn.textContent=v>0?'◎ Clearance: '+v+'px':'◎ Clearance: Off';
+  btn.classList.toggle('on',v>0);
+  const inp=document.getElementById('pref-clearance');
+  if(inp)inp.value=v;
+}
+function cycleClearance(){
+  const steps=[0,20,40,80,120];
+  const cur=PREFS.clearance||0;
+  const idx=steps.indexOf(cur);
+  PREFS.clearance=steps[(idx+1)%steps.length];
+  localStorage.setItem('cc_prefs',JSON.stringify(PREFS));
+  rerenderEdges();
+  updateClearanceBtn();
 }
 </script>
