@@ -2010,12 +2010,48 @@ const SG_COLORS=[
 
 function drawSubgraphBoxes(subgraphs, nm){
   clearSubgraphBoxes();
-  subgraphs.forEach((sg,idx)=>{
-    if(!sg.nodeIds.length) return;
-    const sgNodes=sg.nodeIds.map(id=>nm[id]||nodes[id]).filter(Boolean);
+
+  // Build map and recursive node collector (includes child subgraph nodes)
+  const sgById={};
+  subgraphs.forEach(sg=>sgById[sg.id]=sg);
+  // Iterative deep node collector — avoids stack overflow
+  function allNodeIdsDeep(rootSg){
+    const ids=[...rootSg.nodeIds];
+    const queue=[rootSg];
+    const seen=new Set([rootSg.id]);
+    while(queue.length){
+      const cur=queue.shift();
+      subgraphs.forEach(child=>{
+        if(child.parentId===cur.id && !seen.has(child.id)){
+          seen.add(child.id);
+          ids.push(...child.nodeIds);
+          queue.push(child);
+        }
+      });
+    }
+    return ids;
+  }
+  // Compute depth iteratively too
+  function sgDepth(sg){
+    let d=0, cur=sg;
+    const visited=new Set();
+    while(cur.parentId && sgById[cur.parentId] && !visited.has(cur.id)){
+      visited.add(cur.id); cur=sgById[cur.parentId]; d++;
+    }
+    return d;
+  }
+  // Draw deepest (children) first so parent frames render on top
+  const drawOrder=[...subgraphs].sort((a,b)=>sgDepth(b)-sgDepth(a));
+
+  drawOrder.forEach(sg=>{
+    const idx=subgraphs.indexOf(sg);
+    const deepIds=allNodeIdsDeep(sg);
+    if(!deepIds.length) return;
+    const sgNodes=deepIds.map(id=>nm[id]||nodes[id]).filter(Boolean);
     if(!sgNodes.length) return;
     const col=SG_COLORS[idx%SG_COLORS.length];
-    const PAD=28;
+    // Nested subgraphs get slightly tighter padding so hierarchy is visible
+    const PAD=sg.parentId ? 20 : 28;
     const x =Math.min(...sgNodes.map(n=>n.x))-PAD;
     const y =Math.min(...sgNodes.map(n=>n.y))-PAD-20;
     const x2=Math.max(...sgNodes.map(n=>n.x+n.w))+PAD;
@@ -2203,11 +2239,13 @@ function parseFlow(lines){
     if(!l||l.startsWith('%%')||l.startsWith('classDef')||l.startsWith('click')||l.startsWith('linkStyle')) return;
 
     // ── subgraph start: "subgraph ID [Label]" or "subgraph Label"
-    const sgm = l.match(/^subgraph\s+(\S+)(?:\s*\[([^\]]*)\])?(?:\s+"?([^"]*)"?)?$/);
+    const sgm = l.match(/^subgraph\s+(?:"([^"]+)"|'([^']+)'|(\S+))(?:\s*\[([^\]]*)\])?(?:\s+(.*))?$/);
     if(sgm){
-      const sgId   = sgm[1].replace(/[^a-zA-Z0-9_]/g,'_');
-      const sgLabel= sgm[2]||sgm[3]||sgm[1];
-      const sg={id:sgId, label:sgLabel, nodeIds:[]};
+      // Group 1=double-quoted, 2=single-quoted, 3=unquoted id
+      const rawId  = sgm[1]||sgm[2]||sgm[3]||'sg';
+      const sgId   = rawId.replace(/[^a-zA-Z0-9_]/g,'_') || 'sg_' + subgraphs.length;
+      const sgLabel= sgm[4]||sgm[5]||rawId;
+      const sg={id:sgId, label:sgLabel, nodeIds:[], parentId: subStack.length ? subStack[subStack.length-1].id : null};
       subgraphs.push(sg);
       subStack.push(sg);
       curSub=sg;
@@ -2379,13 +2417,21 @@ function layoutFlow(allNodes, subgraphs, edgeDefs, opts){
       if(fs&&ts&&fs!==ts) sgEdgeSet.add(`${fs}->${ts}`);
     });
     function connected(a,b){ return sgEdgeSet.has(`${a.id}->${b.id}`)||sgEdgeSet.has(`${b.id}->${a.id}`); }
+    // Check if two subgraphs are in a parent/child relationship (either direction)
+    function isRelated(a,b){
+      let cur=a;const seen=new Set();
+      while(cur.parentId){if(seen.has(cur.id))break;seen.add(cur.id);if(cur.parentId===b.id)return true;cur=subgraphs.find(s=>s.id===cur.parentId)||{parentId:null};}
+      cur=b;seen.clear();
+      while(cur.parentId){if(seen.has(cur.id))break;seen.add(cur.id);if(cur.parentId===a.id)return true;cur=subgraphs.find(s=>s.id===cur.parentId)||{parentId:null};}
+      return false;
+    }
 
     const ordered = [...subgraphs].sort((a,b)=>sgRankSpan(a).min-sgRankSpan(b).min);
     for(let i=1;i<ordered.length;i++){
       const sg=ordered[i]; let shift=0;
       for(let j=0;j<i;j++){
         const prev=ordered[j];
-        if(ranksOverlap(sg,prev)&&!connected(sg,prev)){
+        if(ranksOverlap(sg,prev)&&!connected(sg,prev)&&!isRelated(sg,prev)){
           const need=(sgRankSpan(prev).max+1)-sgRankSpan(sg).min;
           if(need>shift) shift=need;
         }
@@ -2403,9 +2449,24 @@ function layoutFlow(allNodes, subgraphs, edgeDefs, opts){
       ? Math.min(...sg.nodeIds.map(id=>globalRank[id]||0))
       : 0;
   });
-  const sgOrder = [...subgraphs].sort((a,b)=>sgMinRank[a.id]-sgMinRank[b.id]);
-  const sgSlot  = {};
-  sgOrder.forEach((sg,i) => sgSlot[sg.id] = i);
+  // Sort only top-level subgraphs; children inherit parent's slot
+  const topLevelSgs = subgraphs.filter(sg=>!sg.parentId);
+  const topOrder = [...topLevelSgs].sort((a,b)=>sgMinRank[a.id]-sgMinRank[b.id]);
+  const sgSlot = {};
+  // Assign each subgraph the slot of its root ancestor
+  function rootAncestor(sg){
+    let cur=sg; const seen=new Set();
+    while(cur.parentId){
+      if(seen.has(cur.id)) break; seen.add(cur.id);
+      const par=subgraphs.find(s=>s.id===cur.parentId);
+      if(!par) break; cur=par;
+    }
+    return cur;
+  }
+  topOrder.forEach((sg,i) => sgSlot[sg.id]=i);
+  subgraphs.forEach(sg => {
+    if(sg.parentId) sgSlot[sg.id] = sgSlot[rootAncestor(sg).id];
+  });
 
   // ── 6. Group nodes by rank ────────────────────────────────
   const byRank = [];
@@ -2426,7 +2487,17 @@ function layoutFlow(allNodes, subgraphs, edgeDefs, opts){
       const aSg=nodeSg[a.id]??null, bSg=nodeSg[b.id]??null;
       const aSlot=aSg!==null?sgSlot[aSg]:-0.5;
       const bSlot=bSg!==null?sgSlot[bSg]:-0.5;
-      if(aSg!==null&&aSg===bSg){
+      // Treat child subgraph nodes as belonging to their root ancestor for grouping
+      function rootSgId(sgId){
+        if(!sgId) return null;
+        let cur=subgraphs.find(s=>s.id===sgId);
+        const seen=new Set();
+        while(cur&&cur.parentId&&!seen.has(cur.id)){seen.add(cur.id);const par=subgraphs.find(s=>s.id===cur.parentId);if(!par)break;cur=par;}
+        return cur?cur.id:sgId;
+      }
+      const aRootSg=aSg?rootSgId(aSg):null;
+      const bRootSg=bSg?rootSgId(bSg):null;
+      if(aRootSg!==null&&aRootSg===bRootSg){
         const aB=predList[a.id].length?predList[a.id].reduce((s,p)=>s+(nodePos[p]||0),0)/predList[a.id].length:nodePos[a.id];
         const bB=predList[b.id].length?predList[b.id].reduce((s,p)=>s+(nodePos[p]||0),0)/predList[b.id].length:nodePos[b.id];
         return aB-bB;
@@ -2446,8 +2517,16 @@ function layoutFlow(allNodes, subgraphs, edgeDefs, opts){
     if(!rn.length){rowLayouts[r]=[];continue;}
     const groups=[];let curGrp=null;
     rn.forEach(n=>{
-      const sg=nodeSg[n.id]??'__free__';
-      if(!curGrp||curGrp.sg!==sg){curGrp={sg,nodes:[]};groups.push(curGrp);}
+      // Use root ancestor's sg id so child-subgraph nodes group with parent
+      const ownSg=nodeSg[n.id]??'__free__';
+      let rootSg=ownSg;
+      if(ownSg!=='__free__'){
+        let cur=subgraphs.find(s=>s.id===ownSg);
+        const seen=new Set();
+        while(cur&&cur.parentId&&!seen.has(cur.id)){seen.add(cur.id);const par=subgraphs.find(s=>s.id===cur.parentId);if(!par)break;cur=par;}
+        if(cur) rootSg=cur.id;
+      }
+      if(!curGrp||curGrp.sg!==rootSg){curGrp={sg:rootSg,nodes:[]};groups.push(curGrp);}
       curGrp.nodes.push(n);
     });
     let x=0;const nodeX={};
@@ -2495,28 +2574,47 @@ function layoutFlow(allNodes, subgraphs, edgeDefs, opts){
 
   // ── 11. Enforce subgraph bbox separation ──────────────────
   const MIN_SG_GAP = SG_PAD*2+20;
+  // Collect all nodeIds in a subgraph including its nested children
+  function deepNodeIds(sg){
+    const ids=[...sg.nodeIds];
+    const queue=[sg];const seen=new Set([sg.id]);
+    while(queue.length){const cur=queue.shift();subgraphs.forEach(ch=>{if(ch.parentId===cur.id&&!seen.has(ch.id)){seen.add(ch.id);ids.push(...ch.nodeIds);queue.push(ch);}});}
+    return ids;
+  }
+  // Is sgB a descendant of sgA (or vice versa)?
+  function isAncestorOf(ancestor,sg){
+    let cur=sg;const seen=new Set();
+    while(cur.parentId){if(seen.has(cur.id))break;seen.add(cur.id);if(cur.parentId===ancestor.id)return true;cur=subgraphs.find(s=>s.id===cur.parentId)||{parentId:null};}
+    return false;
+  }
   function sgBBox(sg){
-    const sns=sg.nodeIds.map(id=>nodeMap[id]).filter(Boolean);
+    // Use deep node ids so parent bbox covers children
+    const ids=deepNodeIds(sg);
+    const sns=ids.map(id=>nodeMap[id]).filter(Boolean);
     if(!sns.length) return null;
     return{left:Math.min(...sns.map(n=>n.x))-SG_PAD,right:Math.max(...sns.map(n=>n.x+(n.w||NODE_W)))+SG_PAD,
            top:Math.min(...sns.map(n=>n.y))-SG_PAD-20,bottom:Math.max(...sns.map(n=>n.y+(n.h||NODE_H)))+SG_PAD};
   }
   function sgOverlapH(sgA,sgB){
+    // Never separate a parent from its child
+    if(isAncestorOf(sgA,sgB)||isAncestorOf(sgB,sgA))return false;
     const a=sgBBox(sgA),b=sgBBox(sgB);if(!a||!b)return false;
     if(a.bottom<b.top||b.bottom<a.top)return false;
     return a.right+MIN_SG_GAP>b.left;
   }
+  // Only separate top-level subgraphs (no parentId) — children move with parent
   for(let pass=0;pass<10;pass++){
     let anyShift=false;
-    const sorted=[...subgraphs].filter(sg=>sg.nodeIds.some(id=>nodeMap[id]))
+    const topLevel=[...subgraphs].filter(sg=>!sg.parentId&&deepNodeIds(sg).some(id=>nodeMap[id]))
       .sort((a,b)=>{const ba=sgBBox(a),bb=sgBBox(b);return(ba?ba.left:0)-(bb?bb.left:0);});
-    for(let i=0;i<sorted.length;i++){
-      for(let j=i+1;j<sorted.length;j++){
-        const sgA=sorted[i],sgB=sorted[j];
+    for(let i=0;i<topLevel.length;i++){
+      for(let j=i+1;j<topLevel.length;j++){
+        const sgA=topLevel[i],sgB=topLevel[j];
         if(!sgOverlapH(sgA,sgB))continue;
         const bA=sgBBox(sgA),bB=sgBBox(sgB);if(!bA||!bB)continue;
         const needed=(bA.right+MIN_SG_GAP)-bB.left;if(needed<=0)continue;
-        sgB.nodeIds.forEach(id=>{if(nodeMap[id])nodeMap[id].x+=needed;});
+        // Move all nodes of sgB and its children
+        deepNodeIds(sgB).forEach(id=>{if(nodeMap[id])nodeMap[id].x+=needed;});
         anyShift=true;
       }
     }
